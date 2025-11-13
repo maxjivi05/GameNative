@@ -241,7 +241,6 @@
     <string name="no_environment_variables">No environment variables</string>
     <string name="no_drives">No drives</string>
     <string name="startup_selection">Startup Selection</string>
-    <string name="processor_affinity">Processor Affinity</string>
     <string name="processor_affinity_32bit">Processor Affinity (32-bit apps)</string>
     <string name="executable_path">Executable Path</string>
     <string name="executable_path_placeholder">e.g., path\\to\\exe</string>
