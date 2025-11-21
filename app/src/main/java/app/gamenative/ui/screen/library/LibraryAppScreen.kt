@@ -763,6 +763,45 @@ internal fun AppScreenContent(
                                     )
                                 }
                             }
+
+                            if (displayInfo.playtimeText != null) {
+                                item {
+                                    Column {
+                                        Text(
+                                            text = stringResource(R.string.playtime_forever),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = displayInfo.playtimeText ?: "",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (displayInfo.metacriticScore != null && displayInfo.metacriticScore > 0) {
+                                item {
+                                    Column {
+                                        Text(
+                                            text = stringResource(R.string.metacritic_score),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "${displayInfo.metacriticScore}/100",
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                            color = when {
+                                                displayInfo.metacriticScore >= 75 -> Color(0xFF66C955) // Green
+                                                displayInfo.metacriticScore >= 50 -> Color(0xFFFFCC33) // Yellow
+                                                else -> Color(0xFFFF6666) // Red
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
