@@ -142,29 +142,29 @@ fun PluviaMain(
 
                 is MainViewModel.MainUiEvent.ExternalGameLaunch -> {
                     Timber.i("[PluviaMain]: Received ExternalGameLaunch UI event for app ${event.appId}")
-                    
+
                     // Extract game ID from appId (format: "STEAM_<id>" or "CUSTOM_GAME_<id>")
                     val gameId = ContainerUtils.extractGameIdFromContainerId(event.appId)
-                    
+
                     // First check if it's a Steam game and if it's installed
                     val isSteamInstalled = SteamService.isAppInstalled(gameId)
-                    
+
                     // If not installed as Steam game, check if it's a custom game
                     val customGamePath = if (!isSteamInstalled) {
                         CustomGameScanner.findCustomGameById(gameId)
                     } else {
                         null
                     }
-                    
+
                     // Determine the final appId to use
                     val finalAppId = if (customGamePath != null && !isSteamInstalled) {
                         "${GameSource.CUSTOM_GAME.name}_$gameId"
                     } else {
                         event.appId
                     }
-                    
+
                     Timber.i("[PluviaMain]: Using appId: $finalAppId (original: ${event.appId}, isSteamInstalled: $isSteamInstalled, customGamePath: ${customGamePath != null})")
-                    
+
                     viewModel.setLaunchedAppId(finalAppId)
                     viewModel.setBootToContainer(false)
                     preLaunchApp(
@@ -207,17 +207,17 @@ fun PluviaMain(
 
                                     // Extract game ID from appId (format: "STEAM_<id>" or "CUSTOM_GAME_<id>")
                                     val gameId = ContainerUtils.extractGameIdFromContainerId(launchRequest.appId)
-                                    
+
                                     // First check if it's a Steam game and if it's installed
                                     val isSteamInstalled = SteamService.isAppInstalled(gameId)
-                                    
+
                                     // If not installed as Steam game, check if it's a custom game
                                     val customGamePath = if (!isSteamInstalled) {
                                         CustomGameScanner.findCustomGameById(gameId)
                                     } else {
                                         null
                                     }
-                                    
+
                                     // If neither Steam installed nor custom game found, show error
                                     if (!isSteamInstalled && customGamePath == null) {
                                         val appName = SteamService.getAppInfoOf(gameId)?.name ?: "App ${launchRequest.appId}"
@@ -233,14 +233,14 @@ fun PluviaMain(
                                         )
                                         return@let
                                     }
-                                    
+
                                     // If it's a custom game, update the appId to use CUSTOM_GAME format
                                     val finalAppId = if (customGamePath != null && !isSteamInstalled) {
                                         "${GameSource.CUSTOM_GAME.name}_$gameId"
                                     } else {
                                         launchRequest.appId
                                     }
-                                    
+
                                     // Update launchRequest with the correct appId if it was changed
                                     val updatedLaunchRequest = if (finalAppId != launchRequest.appId) {
                                         launchRequest.copy(appId = finalAppId)
@@ -906,7 +906,6 @@ fun PluviaMain(
                             setMessageDialogState = { msgDialogState = it },
                             onSuccess = viewModel::launchApp,
                             isOffline = isOffline,
-                            skipExeCheck = asContainer, // Skip exe check when opening container
                         )
                     },
                     onClickExit = {
@@ -1013,7 +1012,6 @@ fun preLaunchApp(
     onSuccess: KFunction2<Context, String, Unit>,
     retryCount: Int = 0,
     isOffline: Boolean = false,
-    skipExeCheck: Boolean = false,
 ) {
     setLoadingDialogVisible(true)
     // TODO: add a way to cancel
@@ -1037,68 +1035,6 @@ fun preLaunchApp(
         // Check if this is a Custom Game and validate executable selection before installing components
         // Skip the check if booting to container (Open Container menu option)
         val isCustomGame = ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.CUSTOM_GAME
-        
-        if (isCustomGame && !skipExeCheck) {
-            Timber.tag("preLaunchApp").i("Custom Game detected for $appId — checking executable selection")
-            
-            val gameFolderPath = CustomGameScanner.getFolderPathFromAppId(appId)
-            if (gameFolderPath != null) {
-                val allExes = CustomGameScanner.findAllValidExeFiles(gameFolderPath)
-                
-                // If there are multiple exes, check if one is selected
-                if (allExes.size > 1) {
-                    if (container.executablePath.isEmpty()) {
-                        // Multiple exes found but none selected - show dialog
-                        Timber.tag("preLaunchApp").w("Multiple executables found but none selected for $appId")
-                        setLoadingDialogVisible(false)
-                        setMessageDialogState(
-                            MessageDialogState(
-                                visible = true,
-                                type = DialogType.SYNC_FAIL,
-                                title = context.getString(R.string.custom_game_exe_selection_title),
-                                message = context.getString(R.string.custom_game_exe_selection_message),
-                                dismissBtnText = context.getString(R.string.close),
-                            )
-                        )
-                        return@launch
-                    }
-                } else if (allExes.size == 1 && container.executablePath.isEmpty()) {
-                    // Only one exe found and none selected - auto-select it
-                    val autoExe = allExes.first()
-                    Timber.tag("preLaunchApp").i("Auto-selecting single executable: $autoExe for $appId")
-                    container.executablePath = autoExe
-                    container.saveData()
-                } else if (allExes.isEmpty() && container.executablePath.isEmpty()) {
-                    // No exes found and none selected - show error
-                    Timber.tag("preLaunchApp").w("No executables found for $appId")
-                    setLoadingDialogVisible(false)
-                    setMessageDialogState(
-                        MessageDialogState(
-                            visible = true,
-                            type = DialogType.SYNC_FAIL,
-                            title = context.getString(R.string.custom_game_exe_selection_title),
-                            message = "No executable files found in the game folder. Please ensure the game folder contains at least one .exe file.",
-                            dismissBtnText = context.getString(R.string.close),
-                        )
-                    )
-                    return@launch
-                }
-            } else {
-                // Game folder not found
-                Timber.tag("preLaunchApp").w("Game folder not found for $appId")
-                setLoadingDialogVisible(false)
-                setMessageDialogState(
-                    MessageDialogState(
-                        visible = true,
-                        type = DialogType.SYNC_FAIL,
-                        title = context.getString(R.string.game_not_installed_title),
-                        message = "Game folder not found. The custom game may have been moved or deleted.",
-                        dismissBtnText = context.getString(R.string.close),
-                    )
-                )
-                return@launch
-            }
-        }
 
         // set up Ubuntu file system
         SplitCompat.install(context)

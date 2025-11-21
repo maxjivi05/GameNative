@@ -204,6 +204,12 @@ class CustomGameAppScreen : BaseAppScreen() {
         libraryItem: LibraryItem,
         onClickPlay: (Boolean) -> Unit
     ) {
+        val container = ContainerUtils.getOrCreateContainer(context, libraryItem.appId)
+        if (container.executablePath.isEmpty()) {
+            // Multiple exes found but none selected - show dialog
+            showExeSelectionDialog(libraryItem.appId)
+            return
+        }
         // Launch the game - executable check is now done in preLaunchApp
         PluviaApp.events.emit(AndroidEvent.ExternalGameLaunch(libraryItem.appId))
     }
