@@ -125,27 +125,29 @@ fun SettingsGroupInterface(
     var gogLoginError by rememberSaveable { mutableStateOf<String?>(null) }
     var gogLoginSuccess by rememberSaveable { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    
+
     // Listen for GOG OAuth callback
     LaunchedEffect(Unit) {
         app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.GOGAuthCodeReceived, Unit> { event ->
             timber.log.Timber.d("Received GOG auth code from deep link: ${event.authCode.take(20)}...")
             gogLoginLoading = true
             gogLoginError = null
-            
-            try {
-                val authConfigPath = "${context.filesDir}/gog_auth.json"
-                val result = app.gamenative.service.gog.GOGService.authenticateWithCode(authConfigPath, event.authCode)
-                gogLoginLoading = false
-                if (result.isSuccess) {
-                    gogLoginSuccess = true
-                    openGOGLoginDialog = false
-                } else {
-                    gogLoginError = result.exceptionOrNull()?.message ?: "Authentication failed"
+
+            coroutineScope.launch {
+                try {
+                    val authConfigPath = "${context.filesDir}/gog_auth.json"
+                    val result = app.gamenative.service.gog.GOGService.authenticateWithCode(authConfigPath, event.authCode)
+                    gogLoginLoading = false
+                    if (result.isSuccess) {
+                        gogLoginSuccess = true
+                        openGOGLoginDialog = false
+                    } else {
+                        gogLoginError = result.exceptionOrNull()?.message ?: "Authentication failed"
+                    }
+                } catch (e: Exception) {
+                    gogLoginLoading = false
+                    gogLoginError = e.message ?: "Authentication failed"
                 }
-            } catch (e: Exception) {
-                gogLoginLoading = false
-                gogLoginError = e.message ?: "Authentication failed"
             }
         }
     }
