@@ -5,6 +5,7 @@ import com.winlator.box86_64.Box86_64Preset
 import com.winlator.core.DefaultVersion
 import com.winlator.core.WineInfo
 import com.winlator.core.WineThemeManager
+import com.winlator.fexcore.FEXCorePreset
 import kotlin.String
 
 data class ContainerData(
@@ -47,6 +48,8 @@ data class ContainerData(
     val fexcoreTSOMode: String = "Fast",
     val fexcoreX87Mode: String = "Fast",
     val fexcoreMultiBlock: String = "Disabled",
+    // FEXCore preset (arm64ec)
+    val fexcorePreset: String = FEXCorePreset.INTERMEDIATE,
     // wine registry
     val renderer: String = "gl",
     val csmt: Boolean = true,
@@ -119,6 +122,7 @@ data class ContainerData(
                     "fexcoreTSOMode" to state.fexcoreTSOMode,
                     "fexcoreX87Mode" to state.fexcoreX87Mode,
                     "fexcoreMultiBlock" to state.fexcoreMultiBlock,
+                    "fexcorePreset" to state.fexcorePreset,
                     "sdlControllerAPI" to state.sdlControllerAPI,
                     "enableXInput" to state.enableXInput,
                     "enableDInput" to state.enableDInput,
@@ -172,6 +176,7 @@ data class ContainerData(
                     fexcoreTSOMode = (savedMap["fexcoreTSOMode"] as? String) ?: "Fast",
                     fexcoreX87Mode = (savedMap["fexcoreX87Mode"] as? String) ?: "Fast",
                     fexcoreMultiBlock = (savedMap["fexcoreMultiBlock"] as? String) ?: "Disabled",
+                    fexcorePreset = (savedMap["fexcorePreset"] as? String) ?: FEXCorePreset.INTERMEDIATE,
                     sdlControllerAPI = savedMap["sdlControllerAPI"] as Boolean,
                     enableXInput = savedMap["enableXInput"] as Boolean,
                     enableDInput = savedMap["enableDInput"] as Boolean,

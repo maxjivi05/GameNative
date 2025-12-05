@@ -7,6 +7,7 @@ import app.gamenative.R
 import com.winlator.box86_64.Box86_64PresetManager
 import com.winlator.container.Container
 import com.winlator.container.ContainerData
+import com.winlator.fexcore.FEXCorePresetManager
 import com.winlator.contents.AdrenotoolsManager
 import com.winlator.core.KeyValueSet
 import kotlinx.coroutines.Dispatchers
@@ -329,6 +330,17 @@ object BestConfigService {
             }
         }
 
+        // Validate FEXCore preset
+        val fexcorePreset = filteredJson.optString("fexcorePreset", "")
+        if (fexcorePreset.isNotEmpty()) {
+            val preset = com.winlator.fexcore.FEXCorePresetManager.getPreset(context, fexcorePreset)
+            if (preset == null) {
+                Timber.tag("BestConfigService").w("FEXCore preset $fexcorePreset not found, updating to PrefManager default")
+                return false
+                filteredJson.put("fexcorePreset", PrefManager.fexcorePreset)
+            }
+        }
+
         return true
     }
 
@@ -463,6 +475,9 @@ object BestConfigService {
                 }
                 if (filteredJson.has("fexcoreMultiBlock") && !filteredJson.isNull("fexcoreMultiBlock")) {
                     resultMap["fexcoreMultiBlock"] = filteredJson.optString("fexcoreMultiBlock", "")
+                }
+                if (filteredJson.has("fexcorePreset") && !filteredJson.isNull("fexcorePreset")) {
+                    resultMap["fexcorePreset"] = filteredJson.optString("fexcorePreset", "")
                 }
                 if (filteredJson.has("useLegacyDRM") && !filteredJson.isNull("useLegacyDRM")) {
                     resultMap["useLegacyDRM"] = filteredJson.optBoolean("useLegacyDRM", PrefManager.useLegacyDRM)

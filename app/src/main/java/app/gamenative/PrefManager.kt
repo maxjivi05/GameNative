@@ -339,6 +339,13 @@ object PrefManager {
             setPref(BOX64_PRESET, value)
         }
 
+    private val FEXCORE_PRESET = stringPreferencesKey("fexcore_preset")
+    var fexcorePreset: String
+        get() = getPref(FEXCORE_PRESET, com.winlator.fexcore.FEXCorePreset.INTERMEDIATE)
+        set(value) {
+            setPref(FEXCORE_PRESET, value)
+        }
+
     private val RENDERER = stringPreferencesKey("renderer")
     var renderer: String
         get() = getPref(RENDERER, "gl")

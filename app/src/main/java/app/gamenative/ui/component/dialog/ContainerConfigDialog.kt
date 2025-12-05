@@ -1488,34 +1488,6 @@ fun ContainerConfigDialog(
                                                         config = config.copy(fexcoreVersion = fexcoreVersions[idx])
                                                     },
                                                 )
-                                                SettingsListDropdown(
-                                                    colors = settingsTileColors(),
-                                                    title = { Text(text = stringResource(R.string.tso_mode)) },
-                                                    value = fexcoreTSOPresets.indexOfFirst { it == config.fexcoreTSOMode }.coerceAtLeast(0),
-                                                    items = fexcoreTSOPresets,
-                                                    onItemSelected = { idx ->
-                                                        config = config.copy(fexcoreTSOMode = fexcoreTSOPresets[idx])
-                                                    },
-                                                )
-                                                SettingsListDropdown(
-                                                    colors = settingsTileColors(),
-                                                    title = { Text(text = stringResource(R.string.x87_mode)) },
-                                                    value = fexcoreX87Presets.indexOfFirst { it == config.fexcoreX87Mode }.coerceAtLeast(0),
-                                                    items = fexcoreX87Presets,
-                                                    onItemSelected = { idx ->
-                                                        config = config.copy(fexcoreX87Mode = fexcoreX87Presets[idx])
-                                                    },
-                                                )
-                                                SettingsListDropdown(
-                                                    colors = settingsTileColors(),
-                                                    title = { Text(text = stringResource(R.string.multiblock)) },
-                                                    value = fexcoreMultiblockValues.indexOfFirst { it == config.fexcoreMultiBlock }
-                                                        .coerceAtLeast(0),
-                                                    items = fexcoreMultiblockValues,
-                                                    onItemSelected = { idx ->
-                                                        config = config.copy(fexcoreMultiBlock = fexcoreMultiblockValues[idx])
-                                                    },
-                                                )
                                             }
                                         }
                                     }
@@ -1591,6 +1563,21 @@ fun ContainerConfigDialog(
                                         )
                                     },
                                 )
+                                // FEXCore Preset (only when Bionic + Wine arm64ec)
+                                if (config.containerVariant.equals(Container.BIONIC, ignoreCase = true) 
+                                    && config.wineVersion.contains("arm64ec", ignoreCase = true)) {
+                                    SettingsListDropdown(
+                                        colors = settingsTileColors(),
+                                        title = { Text(text = stringResource(R.string.fexcore_preset)) },
+                                        value = fexcorePresets.indexOfFirst { it.id == config.fexcorePreset }.coerceAtLeast(0),
+                                        items = fexcorePresets.map { it.name },
+                                        onItemSelected = {
+                                            config = config.copy(
+                                                fexcorePreset = fexcorePresets[it].id,
+                                            )
+                                        },
+                                    )
+                                }
                             }
                             if (selectedTab == 3) SettingsGroup() {
                                 if (!default) {

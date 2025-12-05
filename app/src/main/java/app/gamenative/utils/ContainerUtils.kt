@@ -105,6 +105,7 @@ object ContainerUtils {
 			fexcoreTSOMode = PrefManager.fexcoreTSOMode,
 			fexcoreX87Mode = PrefManager.fexcoreX87Mode,
 			fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
+			fexcorePreset = PrefManager.fexcorePreset,
 			renderer = PrefManager.renderer,
 			csmt = PrefManager.csmt,
             videoPciDeviceID = PrefManager.videoPciDeviceID,
@@ -163,6 +164,7 @@ object ContainerUtils {
         PrefManager.fexcoreTSOMode = containerData.fexcoreTSOMode
         PrefManager.fexcoreX87Mode = containerData.fexcoreX87Mode
         PrefManager.fexcoreMultiBlock = containerData.fexcoreMultiBlock
+        PrefManager.fexcorePreset = containerData.fexcorePreset
 		// Persist renderer and controller defaults
 		PrefManager.renderer = containerData.renderer
 		PrefManager.xinputEnabled = containerData.enableXInput
@@ -249,6 +251,7 @@ object ContainerUtils {
             wineVersion = container.wineVersion,
             emulator = container.emulator,
             fexcoreVersion = container.fexCoreVersion,
+            fexcorePreset = container.getFEXCorePreset(),
             language = container.language,
             sdlControllerAPI = container.isSdlControllerAPI,
             forceDlc = container.isForceDlc,
@@ -303,6 +306,7 @@ object ContainerUtils {
                 "fexcoreTSOMode" -> value?.let { updatedData.copy(fexcoreTSOMode = it as? String ?: updatedData.fexcoreTSOMode) } ?: updatedData
                 "fexcoreX87Mode" -> value?.let { updatedData.copy(fexcoreX87Mode = it as? String ?: updatedData.fexcoreX87Mode) } ?: updatedData
                 "fexcoreMultiBlock" -> value?.let { updatedData.copy(fexcoreMultiBlock = it as? String ?: updatedData.fexcoreMultiBlock) } ?: updatedData
+                "fexcorePreset" -> value?.let { updatedData.copy(fexcorePreset = it as? String ?: updatedData.fexcorePreset) } ?: updatedData
                 "useLegacyDRM" -> value?.let { updatedData.copy(useLegacyDRM = it as? Boolean ?: updatedData.useLegacyDRM) } ?: updatedData
                 else -> updatedData
             }
@@ -376,6 +380,7 @@ object ContainerUtils {
         container.wineVersion = containerData.wineVersion
         container.emulator = containerData.emulator
         container.fexCoreVersion = containerData.fexcoreVersion
+        container.setFEXCorePreset(containerData.fexcorePreset)
         container.setDisableMouseInput(containerData.disableMouseInput)
         container.setTouchscreenMode(containerData.touchscreenMode)
         container.setEmulateKeyboardMouse(containerData.emulateKeyboardMouse)
@@ -686,6 +691,7 @@ object ContainerUtils {
 				fexcoreTSOMode = PrefManager.fexcoreTSOMode,
 				fexcoreX87Mode = PrefManager.fexcoreX87Mode,
 				fexcoreMultiBlock = PrefManager.fexcoreMultiBlock,
+				fexcorePreset = PrefManager.fexcorePreset,
 				renderer = PrefManager.renderer,
                 csmt = PrefManager.csmt,
                 videoPciDeviceID = PrefManager.videoPciDeviceID,

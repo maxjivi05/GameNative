@@ -2071,7 +2071,7 @@ private fun extractWinComponentFiles(
 
         for (wincomponent in KeyValueSet(wincomponents)) {
             try {
-                if (wincomponent[1].equals(oldWinComponentsIter.next()[1])) continue
+                if (wincomponent[1].equals(oldWinComponentsIter.next()[1]) && !firstTimeBoot) continue
             } catch (e: StringIndexOutOfBoundsException) {
                 Timber.d("Wincomponent ${wincomponent[0]} does not exist in oldwincomponents, skipping")
             }
