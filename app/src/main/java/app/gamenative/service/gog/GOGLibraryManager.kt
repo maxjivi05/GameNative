@@ -16,6 +16,14 @@ import javax.inject.Singleton
 class GOGLibraryManager @Inject constructor(
     private val gogGameDao: GOGGameDao,
 ) {
+    /**
+     * Get a GOG game by ID from database
+     */
+    suspend fun getGameById(gameId: String): GOGGame? {
+        return withContext(Dispatchers.IO) {
+            gogGameDao.getById(gameId)
+        }
+    }
 
     /**
      * Start background library sync

@@ -21,6 +21,7 @@ import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import timber.log.Timber
+import java.util.function.Function
 
 /**
  * Data class to hold metadata extracted from GOG GamesDB
@@ -39,6 +40,26 @@ data class GameSizeInfo(
     val downloadSize: Long,
     val diskSize: Long
 )
+
+/**
+ * Progress callback that Python code can invoke to report download progress
+ */
+class ProgressCallback(private val downloadInfo: DownloadInfo) {
+    @JvmOverloads
+    fun update(percent: Float = 0f, downloadedMB: Float = 0f, totalMB: Float = 0f, downloadSpeedMBps: Float = 0f, eta: String = "") {
+        try {
+            val progress = (percent / 100.0f).coerceIn(0.0f, 1.0f)
+            downloadInfo.setProgress(progress)
+
+            if (percent > 0f) {
+                Timber.d("Download progress: %.1f%% (%.1f/%.1f MB) Speed: %.2f MB/s ETA: %s",
+                    percent, downloadedMB, totalMB, downloadSpeedMBps, eta)
+            }
+        } catch (e: Exception) {
+            Timber.w(e, "Error updating download progress")
+        }
+    }
+}
 
 @Singleton
 class GOGService @Inject constructor() : Service() {
@@ -432,6 +453,16 @@ class GOGService @Inject constructor() : Service() {
         }
 
         /**
+         * Get GOG game info by game ID (synchronously for UI)
+         * Similar to SteamService.getAppInfoOf()
+         */
+        fun getGOGGameOf(gameId: String): GOGGame? {
+            return runBlocking(Dispatchers.IO) {
+                getInstance()?.gogLibraryManager?.getGameById(gameId)
+            }
+        }
+
+        /**
          * Clean up active download when game is deleted
          */
         fun cleanupDownload(gameId: String) {
@@ -691,7 +722,7 @@ class GOGService @Inject constructor() : Service() {
                         val supportDir = File(installDir.parentFile, "gog-support")
                         supportDir.mkdirs()
 
-                        val result = executeCommandWithProgressParsing(
+                        val result = executeCommandWithCallback(
                             downloadInfo,
                             "--auth-config-path", authConfigPath,
                             "download", ContainerUtils.extractGameIdFromContainerId(gameId).toString(),
@@ -738,38 +769,55 @@ class GOGService @Inject constructor() : Service() {
             }
         }
 
-        /**
-         * Execute GOGDL command with progress parsing from logcat output
-         */
-        private suspend fun executeCommandWithProgressParsing(downloadInfo: DownloadInfo, vararg args: String): Result<String> {
-            return withContext(Dispatchers.IO) {
-                var logMonitorJob: Job? = null
-                try {
-                    // Start log monitoring for GOGDL progress
-                    logMonitorJob = CoroutineScope(Dispatchers.IO).launch {
-                        monitorGOGDLProgress(downloadInfo)
-                    }
 
+        /**
+         * Execute GOGDL command with progress callback
+         */
+        private suspend fun executeCommandWithCallback(downloadInfo: DownloadInfo, vararg args: String): Result<String> {
+            return withContext(Dispatchers.IO) {
+                try {
                     val python = Python.getInstance()
                     val sys = python.getModule("sys")
                     val originalArgv = sys.get("argv")
 
                     try {
+                        // Create progress callback that Python can invoke
+                        val progressCallback = ProgressCallback(downloadInfo)
+                        // Get the gogdl module and set up callback
+                        val gogdlModule = python.getModule("gogdl")
+
+                        // Try to set progress callback if gogdl supports it
+                        try {
+                            gogdlModule.put("_progress_callback", progressCallback)
+                            Timber.d("Progress callback registered with GOGDL")
+                        } catch (e: Exception) {
+                            Timber.w(e, "Could not register progress callback, will use estimation")
+                        }
+
                         val gogdlCli = python.getModule("gogdl.cli")
 
                         // Set up arguments for argparse
                         val argsList = listOf("gogdl") + args.toList()
-                        Timber.d("Setting GOGDL arguments for argparse: ${args.joinToString(" ")}")
+                        Timber.d("Setting GOGDL arguments: ${args.joinToString(" ")}")
                         val pythonList = python.builtins.callAttr("list", argsList.toTypedArray())
                         sys.put("argv", pythonList)
 
                         // Check for cancellation before starting
                         ensureActive()
 
-                        // Execute the main function
-                        gogdlCli.callAttr("main")
-                        Timber.d("GOGDL execution completed successfully")
-                        Result.success("Download completed")
+                        // Start a simple progress estimator in case callback doesn't work
+                        val estimatorJob = CoroutineScope(Dispatchers.IO).launch {
+                            estimateProgress(downloadInfo)
+                        }
+
+                        try {
+                            // Execute the main function
+                            gogdlCli.callAttr("main")
+                            Timber.i("GOGDL execution completed successfully")
+                            Result.success("Download completed")
+                        } finally {
+                            estimatorJob.cancel()
+                        }
                     } catch (e: Exception) {
                         Timber.e(e, "GOGDL execution failed: ${e.message}")
                         Result.failure(e)
@@ -782,154 +830,47 @@ class GOGService @Inject constructor() : Service() {
                 } catch (e: Exception) {
                     Timber.e(e, "Failed to execute GOGDL command: ${args.joinToString(" ")}")
                     Result.failure(e)
-                } finally {
-                    logMonitorJob?.cancel()
                 }
             }
         }
 
         /**
-         * Monitor GOGDL progress by parsing logcat output (python.stderr)
-         * Parses progress like Heroic Games Launcher does
+         * Estimate progress when callback isn't available
+         * Shows gradual progress to indicate activity
          */
-        private suspend fun monitorGOGDLProgress(downloadInfo: DownloadInfo) {
-            var process: Process? = null
+        private suspend fun estimateProgress(downloadInfo: DownloadInfo) {
             try {
-                // Clear any existing logcat buffer to ensure fresh start
-                try {
-                    val clearProcess = ProcessBuilder("logcat", "-c").start()
-                    clearProcess.waitFor()
-                    Timber.d("Cleared logcat buffer for fresh progress monitoring")
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to clear logcat buffer, continuing anyway")
-                }
-
-                // Add delay to ensure Python process has started and old logs are cleared
-                delay(1000)
-
-                // Use logcat to read python.stderr logs in real-time with timestamp filtering
-                process = ProcessBuilder("logcat", "-s", "python.stderr:W", "-T", "1")
-                    .redirectErrorStream(true)
-                    .start()
-
-                val reader = process.inputStream.bufferedReader()
-                Timber.d("Progress monitoring logcat process started successfully")
-
-                // Track progress state exactly like Heroic does
-                var currentPercent: Float? = null
-                var currentEta: String = ""
-                var currentBytes: String = ""
-                var currentDownSpeed: Float? = null
-                var currentDiskSpeed: Float? = null
-
-                while (downloadInfo.getProgress() < 1.0f && downloadInfo.getProgress() >= 0.0f) {
-                    val line = reader.readLine()
-                    if (line != null) {
-                        // Parse like Heroic: only update if field is empty/undefined
-
-                        // Parse log for percent (only if not already set)
-                        if (currentPercent == null) {
-                            val percentMatch = Regex("""Progress: (\d+\.\d+) """).find(line)
-                            if (percentMatch != null) {
-                                val percent = percentMatch.groupValues[1].toFloatOrNull()
-                                if (percent != null && !percent.isNaN()) {
-                                    currentPercent = percent
-                                }
-                            }
-                        }
-
-                        // Parse log for eta (only if empty)
-                        if (currentEta.isEmpty()) {
-                            val etaMatch = Regex("""ETA: (\d\d:\d\d:\d\d)""").find(line)
-                            if (etaMatch != null) {
-                                currentEta = etaMatch.groupValues[1]
-                            }
-                        }
-
-                        // Parse log for game download progress (only if empty)
-                        if (currentBytes.isEmpty()) {
-                            val bytesMatch = Regex("""Downloaded: (\S+) MiB""").find(line)
-                            if (bytesMatch != null) {
-                                currentBytes = "${bytesMatch.groupValues[1]}MB"
-                            }
-                        }
-
-                        // Parse log for download speed (only if not set)
-                        if (currentDownSpeed == null) {
-                            val downSpeedMatch = Regex("""Download\t- (\S+) MiB""").find(line)
-                            if (downSpeedMatch != null) {
-                                val speed = downSpeedMatch.groupValues[1].toFloatOrNull()
-                                if (speed != null && !speed.isNaN()) {
-                                    currentDownSpeed = speed
-                                }
-                            }
-                        }
-
-                        // Parse disk write speed (only if not set)
-                        if (currentDiskSpeed == null) {
-                            val diskSpeedMatch = Regex("""Disk\t- (\S+) MiB""").find(line)
-                            if (diskSpeedMatch != null) {
-                                val speed = diskSpeedMatch.groupValues[1].toFloatOrNull()
-                                if (speed != null && !speed.isNaN()) {
-                                    currentDiskSpeed = speed
-                                }
-                            }
-                        }
-
-                        // Only send update if all values are present (exactly like Heroic)
-                        if (currentPercent != null && currentEta.isNotEmpty() &&
-                            currentBytes.isNotEmpty() && currentDownSpeed != null && currentDiskSpeed != null) {
-
-                            // Update progress with the percentage
-                            val progress = (currentPercent!! / 100.0f).coerceIn(0.0f, 1.0f)
-                            downloadInfo.setProgress(progress)
-
-                            // Log exactly like Heroic does
-                            Timber.i("Progress for game: ${currentPercent}%/${currentBytes}/${currentEta} Down: ${currentDownSpeed}MB/s / Disk: ${currentDiskSpeed}MB/s")
-
-                            // Reset (exactly like Heroic does)
-                            currentPercent = null
-                            currentEta = ""
-                            currentBytes = ""
-                            currentDownSpeed = null
-                            currentDiskSpeed = null
-                        }
-                    } else {
-                        delay(100L) // Brief delay if no new log lines
-                    }
-                }
-
-                Timber.d("Progress monitoring loop ended - progress: ${downloadInfo.getProgress()}")
-                process?.destroyForcibly()
-                Timber.d("Logcat process destroyed forcibly")
-            } catch (e: CancellationException) {
-                Timber.d("GOGDL progress monitoring cancelled")
-                process?.destroyForcibly()
-                throw e
-            } catch (e: Exception) {
-                Timber.w(e, "Error monitoring GOGDL progress, falling back to estimation")
-                // Simple fallback - estimate progress over time
                 var lastProgress = 0.0f
                 val startTime = System.currentTimeMillis()
 
                 while (downloadInfo.getProgress() < 1.0f && downloadInfo.getProgress() >= 0.0f) {
-                    delay(2000L)
+                    delay(3000L) // Update every 3 seconds
+
                     val elapsed = System.currentTimeMillis() - startTime
                     val estimatedProgress = when {
                         elapsed < 5000 -> 0.05f
-                        elapsed < 15000 -> 0.20f
-                        elapsed < 30000 -> 0.50f
-                        elapsed < 60000 -> 0.80f
-                        else -> 0.90f
+                        elapsed < 15000 -> 0.15f
+                        elapsed < 30000 -> 0.30f
+                        elapsed < 60000 -> 0.50f
+                        elapsed < 120000 -> 0.70f
+                        elapsed < 180000 -> 0.85f
+                        else -> 0.95f
                     }.coerceAtLeast(lastProgress)
 
-                    if (estimatedProgress > lastProgress) {
+                    // Only update if progress hasn't been set by callback
+                    if (downloadInfo.getProgress() <= lastProgress + 0.01f) {
                         downloadInfo.setProgress(estimatedProgress)
                         lastProgress = estimatedProgress
+                        Timber.d("Estimated progress: %.1f%%", estimatedProgress * 100)
+                    } else {
+                        // Callback is working, update our tracking
+                        lastProgress = downloadInfo.getProgress()
                     }
                 }
-            } finally {
-                process?.destroyForcibly()
+            } catch (e: CancellationException) {
+                Timber.d("Progress estimation cancelled")
+            } catch (e: Exception) {
+                Timber.w(e, "Error in progress estimation")
             }
         }
 
@@ -938,28 +879,33 @@ class GOGService @Inject constructor() : Service() {
          * TODO: Implement cloud save sync
          */
         suspend fun syncCloudSaves(gameId: String, savePath: String, authConfigPath: String, timestamp: Float = 0.0f): Result<Unit> {
-            return try {
-                Timber.i("Starting GOG cloud save sync for game $gameId")
 
-                val result = executeCommand(
-                    "--auth-config-path", authConfigPath,
-                    "save-sync", savePath,
-                    "--dirname", gameId,
-                    "--timestamp", timestamp.toString(),
-                )
+            // ! Keep out CloudSaves till we understand how they work.
+            // ! Return Result.success()
 
-                if (result.isSuccess) {
-                    Timber.i("GOG cloud save sync completed successfully for game $gameId")
-                    Result.success(Unit)
-                } else {
-                    val error = result.exceptionOrNull() ?: Exception("Save sync failed")
-                    Timber.e(error, "GOG cloud save sync failed for game $gameId")
-                    Result.failure(error)
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "GOG cloud save sync exception for game $gameId")
-                Result.failure(e)
-            }
+            return Result.success(Unit)
+            // return try {
+            //     Timber.i("Starting GOG cloud save sync for game $gameId")
+
+            //     val result = executeCommand(
+            //         "--auth-config-path", authConfigPath,
+            //         "save-sync", savePath,
+            //         "--dirname", gameId,
+            //         "--timestamp", timestamp.toString(),
+            //     )
+
+            //     if (result.isSuccess) {
+            //         Timber.i("GOG cloud save sync completed successfully for game $gameId")
+            //         Result.success(Unit)
+            //     } else {
+            //         val error = result.exceptionOrNull() ?: Exception("Save sync failed")
+            //         Timber.e(error, "GOG cloud save sync failed for game $gameId")
+            //         Result.failure(error)
+            //     }
+            // } catch (e: Exception) {
+            //     Timber.e(e, "GOG cloud save sync exception for game $gameId")
+            //     Result.failure(e)
+            // }
         }
 
         /**

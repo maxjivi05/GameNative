@@ -77,7 +77,7 @@ fun SettingsGroupInterface(
     onPaletteStyle: (PaletteStyle) -> Unit,
 ) {
     val context = LocalContext.current
-    
+
     // Get GOGGameDao from Hilt
     val gogGameDao = remember {
         val appContext = context.applicationContext

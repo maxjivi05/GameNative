@@ -627,7 +627,13 @@ abstract class BaseAppScreen {
                     performStateRefresh(false)
                 }
             },
-            onDeleteDownloadClick = { onDeleteDownloadClick(context, libraryItem) },
+            onDeleteDownloadClick = {
+                onDeleteDownloadClick(context, libraryItem)
+                uiScope.launch {
+                    delay(100)
+                    performStateRefresh(true)
+                }
+            },
             onUpdateClick = {
                 onUpdateClick(context, libraryItem)
                 uiScope.launch {
