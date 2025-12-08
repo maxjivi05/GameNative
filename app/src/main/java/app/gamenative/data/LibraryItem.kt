@@ -61,8 +61,12 @@ data class LibraryItem(
 
     /**
      * Helper property to get the game ID as an integer
-     * Extracts the numeric part by removing the gameSource prefix
+     * For GOG games, appId is already the numeric ID without prefix
+     * For Steam/Custom games, extract the numeric part after the prefix
      */
     val gameId: Int
-        get() = appId.removePrefix("${gameSource.name}_").toInt()
+        get() = when (gameSource) {
+            GameSource.GOG -> appId.toIntOrNull() ?: 0
+            else -> appId.removePrefix("${gameSource.name}_").toIntOrNull() ?: 0
+        }
 }

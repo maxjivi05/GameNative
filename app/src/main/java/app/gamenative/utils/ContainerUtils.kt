@@ -976,12 +976,14 @@ object ContainerUtils {
 
     /**
      * Extracts the game source from a container ID string
+     * Note: GOG games use plain numeric IDs without prefix
      */
     fun extractGameSourceFromContainerId(containerId: String): GameSource {
         return when {
             containerId.startsWith("STEAM_") -> GameSource.STEAM
             containerId.startsWith("CUSTOM_GAME_") -> GameSource.CUSTOM_GAME
-            containerId.startsWith("GOG_") -> GameSource.GOG
+            // GOG games use plain numeric IDs - check if it's just a number
+            containerId.toIntOrNull() != null -> GameSource.GOG
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }

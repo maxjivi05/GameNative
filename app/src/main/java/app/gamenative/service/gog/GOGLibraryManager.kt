@@ -26,6 +26,16 @@ class GOGLibraryManager @Inject constructor(
     }
 
     /**
+     * Insert or update a GOG game in database
+     * Uses REPLACE strategy, so will update if exists
+     */
+    suspend fun insertGame(game: GOGGame) {
+        withContext(Dispatchers.IO) {
+            gogGameDao.insert(game)
+        }
+    }
+
+    /**
      * Update a GOG game in database
      */
     suspend fun updateGame(game: GOGGame) {

@@ -4,9 +4,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import androidx.room.Room
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GOGCredentials
 import app.gamenative.data.GOGGame
+import app.gamenative.db.PluviaDatabase
+import app.gamenative.db.DATABASE_NAME
 import app.gamenative.service.NotificationHelper
 import app.gamenative.utils.ContainerUtils
 import com.chaquo.python.Kwarg
@@ -15,8 +18,6 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import javax.inject.Inject
-import javax.inject.Singleton
 import kotlinx.coroutines.*
 import okhttp3.OkHttpClient
 import org.json.JSONObject
@@ -61,8 +62,7 @@ class ProgressCallback(private val downloadInfo: DownloadInfo) {
     }
 }
 
-@Singleton
-class GOGService @Inject constructor() : Service() {
+class GOGService : Service() {
 
     companion object {
         private var instance: GOGService? = null
@@ -470,6 +470,20 @@ class GOGService @Inject constructor() : Service() {
         }
 
         /**
+         * Insert or update GOG game in database (uses REPLACE strategy)
+         */
+        suspend fun insertOrUpdateGOGGame(game: GOGGame) {
+            val instance = getInstance()
+            if (instance == null) {
+                timber.log.Timber.e("GOGService instance is null, cannot insert game")
+                return
+            }
+            timber.log.Timber.d("Inserting game: id=${game.id}, isInstalled=${game.isInstalled}, installPath=${game.installPath}")
+            instance.gogLibraryManager.insertGame(game)
+            timber.log.Timber.d("Insert completed for game: ${game.id}")
+        }
+
+        /**
          * Check if a GOG game is installed (synchronous for UI)
          */
         fun isGameInstalled(gameId: String): Boolean {
@@ -736,6 +750,89 @@ class GOGService @Inject constructor() : Service() {
         }
 
         /**
+         * Fetch a single game's metadata from GOG API and insert it into the database
+         * Used when a game is downloaded but not in the database
+         */
+        suspend fun refreshSingleGame(gameId: String, context: Context): Result<GOGGame?> {
+            return try {
+                Timber.i("Fetching single game data for gameId: $gameId")
+                val authConfigPath = "${context.filesDir}/gog_auth.json"
+
+                if (!hasStoredCredentials(context)) {
+                    return Result.failure(Exception("Not authenticated"))
+                }
+
+                // Execute gogdl list command and find this specific game
+                val result = executeCommand("--auth-config-path", authConfigPath, "list", "--pretty")
+
+                if (result.isFailure) {
+                    return Result.failure(result.exceptionOrNull() ?: Exception("Failed to fetch game data"))
+                }
+
+                val output = result.getOrNull() ?: ""
+                val gamesArray = org.json.JSONArray(output.trim())
+
+                // Find the game with matching ID
+                for (i in 0 until gamesArray.length()) {
+                    val gameObj = gamesArray.getJSONObject(i)
+                    if (gameObj.optString("id", "") == gameId) {
+                        // Parse genres
+                        val genresList = mutableListOf<String>()
+                        gameObj.optJSONArray("genres")?.let { genresArray ->
+                            for (j in 0 until genresArray.length()) {
+                                genresList.add(genresArray.getString(j))
+                            }
+                        }
+
+                        // Parse languages
+                        val languagesList = mutableListOf<String>()
+                        gameObj.optJSONArray("languages")?.let { languagesArray ->
+                            for (j in 0 until languagesArray.length()) {
+                                languagesList.add(languagesArray.getString(j))
+                            }
+                        }
+
+                        val game = GOGGame(
+                            id = gameObj.optString("id", ""),
+                            title = gameObj.optString("title", "Unknown Game"),
+                            slug = gameObj.optString("slug", ""),
+                            imageUrl = gameObj.optString("imageUrl", ""),
+                            iconUrl = gameObj.optString("iconUrl", ""),
+                            description = gameObj.optString("description", ""),
+                            releaseDate = gameObj.optString("releaseDate", ""),
+                            developer = gameObj.optString("developer", ""),
+                            publisher = gameObj.optString("publisher", ""),
+                            genres = genresList,
+                            languages = languagesList,
+                            downloadSize = gameObj.optLong("downloadSize", 0L),
+                            installSize = 0L,
+                            isInstalled = false,
+                            installPath = "",
+                            lastPlayed = 0L,
+                            playTime = 0L,
+                        )
+
+                        // Insert into database
+                        getInstance()?.gogLibraryManager?.let { manager ->
+                            withContext(Dispatchers.IO) {
+                                manager.insertGame(game)
+                            }
+                        }
+
+                        Timber.i("Successfully fetched and inserted game: ${game.title}")
+                        return Result.success(game)
+                    }
+                }
+
+                Timber.w("Game $gameId not found in GOG library")
+                Result.success(null)
+            } catch (e: Exception) {
+                Timber.e(e, "Error fetching single game data for $gameId")
+                Result.failure(e)
+            }
+        }
+
+        /**
          * Download a GOG game with full progress tracking via GOGDL log parsing
          */
         suspend fun downloadGame(gameId: String, installPath: String, authConfigPath: String): Result<DownloadInfo?> {
@@ -964,9 +1061,7 @@ class GOGService @Inject constructor() : Service() {
 
     // Add these for foreground service support
     private lateinit var notificationHelper: NotificationHelper
-
-    @Inject
-    lateinit var gogLibraryManager: GOGLibraryManager
+    private lateinit var gogLibraryManager: GOGLibraryManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -977,11 +1072,22 @@ class GOGService @Inject constructor() : Service() {
         super.onCreate()
         instance = this
 
+        // Initialize GOGLibraryManager with database DAO
+        val database = Room.databaseBuilder(
+            applicationContext,
+            PluviaDatabase::class.java,
+            DATABASE_NAME
+        ).build()
+        gogLibraryManager = GOGLibraryManager(database.gogGameDao())
+
+        Timber.d("GOGService.onCreate() - instance and gogLibraryManager initialized")
+
         // Initialize notification helper for foreground service
         notificationHelper = NotificationHelper(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Timber.d("GOGService.onStartCommand() - gogLibraryManager initialized: ${::gogLibraryManager.isInitialized}")
         // Start as foreground service
         val notification = notificationHelper.createForegroundNotification("GOG Service running...")
         startForeground(2, notification) // Use different ID than SteamService (which uses 1)

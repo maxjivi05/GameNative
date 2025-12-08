@@ -345,7 +345,7 @@ class LibraryViewModel @Inject constructor(
                 LibraryEntry(
                     item = LibraryItem(
                         index = 0,
-                        appId = "${GameSource.GOG.name}_${game.id}",
+                        appId = game.id,  // Use plain game ID without GOG_ prefix
                         name = game.title,
                         iconHash = game.imageUrl.ifEmpty { game.iconUrl },  // Use imageUrl (banner) with iconUrl as fallback
                         isShared = false,

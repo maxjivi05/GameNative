@@ -401,6 +401,14 @@ fun PluviaMain(
                 isConnecting = true
                 context.startForegroundService(Intent(context, SteamService::class.java))
             }
+
+            // Start GOGService if user has GOG credentials
+            if (app.gamenative.service.gog.GOGService.hasStoredCredentials(context) &&
+                !app.gamenative.service.gog.GOGService.isRunning) {
+                Timber.d("[PluviaMain]: Starting GOGService for logged-in user")
+                app.gamenative.service.gog.GOGService.start(context)
+            }
+
             if (SteamService.isLoggedIn && !SteamService.isGameRunning && state.currentScreen == PluviaScreen.LoginUser) {
                 navController.navigate(PluviaScreen.Home.route)
             }
