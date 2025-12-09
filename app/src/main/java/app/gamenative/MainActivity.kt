@@ -130,21 +130,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val isRestored = savedInstanceState != null
-        Timber.d("[MainActivity]: onCreate called - savedInstanceState=${if (isRestored) "restored" else "new"}")
-        Timber.d("[MainActivity]: intent.action=${intent.action}, intent.data=${intent.data}")
 
         // Initialize the controller management system
         ControllerManager.getInstance().init(getApplicationContext());
 
         ContainerUtils.setContainerDefaults(applicationContext)
 
-        // Only handle launch intent if this is a fresh start (not restored from saved state)
-        // When restored, we want to preserve the navigation state
-        if (!isRestored) {
-            handleLaunchIntent(intent)
-        } else {
-            Timber.d("[MainActivity]: Skipping handleLaunchIntent because activity is being restored")
-        }
+        handleLaunchIntent(intent)
 
         // Prevent device from sleeping while app is open
         AppUtils.keepScreenOn(this)
@@ -204,52 +196,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Timber.d("[MainActivity]: onNewIntent called")
-        setIntent(intent) // Important: update the intent
+        setIntent(intent)
         handleLaunchIntent(intent)
     }
 
     private fun handleLaunchIntent(intent: Intent) {
-        Timber.d("[IntentLaunch]: handleLaunchIntent called")
-        Timber.d("[IntentLaunch]: action=${intent.action}")
-        Timber.d("[IntentLaunch]: data=${intent.data}")
-        Timber.d("[IntentLaunch]: data.scheme=${intent.data?.scheme}")
-        Timber.d("[IntentLaunch]: data.host=${intent.data?.host}")
-        Timber.d("[IntentLaunch]: data.path=${intent.data?.path}")
-        Timber.d("[IntentLaunch]: data.query=${intent.data?.query}")
-
-        // Handle GOG OAuth callback - must be checked FIRST before any other intent handling
-        val intentData = intent.data
-        if (intentData != null) {
-            Timber.d("[GOG OAuth]: Checking if this is GOG callback...")
-            Timber.d("[GOG OAuth]: scheme=${intentData.scheme}, host=${intentData.host}, path=${intentData.path}")
-
-            if (intentData.scheme == "https" &&
-                intentData.host == "embed.gog.com" &&
-                intentData.path?.startsWith("/on_login_success") == true) {
-                val code = intentData.getQueryParameter("code")
-                Timber.i("[GOG OAuth]: ✓ GOG callback detected! Code=${code?.take(20)}...")
-                if (code != null) {
-                    // Emit event with authorization code
-                    lifecycleScope.launch {
-                        Timber.d("[GOG OAuth]: Emitting GOGAuthCodeReceived event")
-                        PluviaApp.events.emit(app.gamenative.events.AndroidEvent.GOGAuthCodeReceived(code))
-                        Timber.d("[GOG OAuth]: Event emitted successfully")
-                    }
-                    // Clear the intent data to prevent re-processing
-                    intent.data = null
-                } else {
-                    Timber.e("[GOG OAuth]: Code parameter is null!")
-                }
-                // Return early - don't process as game launch intent
-                return
-            } else {
-                Timber.d("[GOG OAuth]: Not a GOG callback (scheme/host/path mismatch)")
-            }
-        } else {
-            Timber.d("[GOG OAuth]: Intent data is null")
-        }
-
         try {
             val launchRequest = IntentLaunchManager.parseLaunchIntent(intent)
             if (launchRequest != null) {
