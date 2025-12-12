@@ -666,6 +666,7 @@ class GOGService : Service() {
          * Static version that doesn't require DI, for use in XServerScreen
          */
         fun getWineStartCommand(
+            context: android.content.Context,
             gameId: String,
             container: com.winlator.container.Container,
             envVars: com.winlator.core.envvars.EnvVars,
@@ -709,29 +710,24 @@ class GOGService : Service() {
                 return null
             }
 
-            // Find GOG drive letter mapping
-            val gogGamesPath = GOGConstants.defaultGOGGamesPath
-            var gogDriveLetter: String? = null
-
-            for (drive in com.winlator.container.Container.drivesIterator(container.drives)) {
-                if (drive[1] == gogGamesPath) {
-                    gogDriveLetter = drive[0]
-                    break
-                }
-            }
-
+            // Ensure this specific game directory is mapped (isolates from other GOG games)
+            val gogDriveLetter = app.gamenative.utils.ContainerUtils.ensureGOGGameDirectoryMapped(
+                context, 
+                container, 
+                installPath
+            )
+            
             if (gogDriveLetter == null) {
-                Timber.e("GOG games directory not mapped in container drives: $gogGamesPath")
-                Timber.e("Container drives: ${container.drives}")
+                Timber.e("Failed to map GOG game directory: $installPath")
                 return null
             }
 
-            Timber.i("Found GOG games directory mapped to $gogDriveLetter: drive")
+            Timber.i("GOG game directory mapped to $gogDriveLetter: drive")
 
-            // Calculate relative path from GOG games directory to executable
-            val gogGamesDir = File(gogGamesPath)
+            // Calculate relative path from game install directory to executable
+            val gameInstallDir = File(installPath)
             val execFile = File(executablePath)
-            val relativePath = execFile.relativeTo(gogGamesDir).path.replace('/', '\\')
+            val relativePath = execFile.relativeTo(gameInstallDir).path.replace('/', '\\')
 
             // Construct Windows path
             val windowsPath = "$gogDriveLetter:\\$relativePath"
@@ -743,7 +739,7 @@ class GOGService : Service() {
                 Timber.i("Setting working directory to: ${gameWorkingDir.absolutePath}")
                 
                 // Set WINEPATH
-                val workingDirRelative = gameWorkingDir.relativeTo(gogGamesDir).path.replace('/', '\\')
+                val workingDirRelative = gameWorkingDir.relativeTo(gameInstallDir).path.replace('/', '\\')
                 val workingDirWindows = "$gogDriveLetter:\\$workingDirRelative"
                 envVars.put("WINEPATH", workingDirWindows)
                 Timber.i("Setting WINEPATH to: $workingDirWindows")

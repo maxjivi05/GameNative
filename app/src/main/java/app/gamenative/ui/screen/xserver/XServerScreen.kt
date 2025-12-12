@@ -1303,6 +1303,7 @@ private fun getWineStartCommand(
         Timber.tag("XServerScreen").i("Launching GOG game: $gameId")
         
         val gogCommand = GOGService.getWineStartCommand(
+            context = context,
             gameId = gameId.toString(),
             container = container,
             envVars = envVars,

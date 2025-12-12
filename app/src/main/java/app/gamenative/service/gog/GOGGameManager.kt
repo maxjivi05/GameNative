@@ -400,49 +400,43 @@ class GOGGameManager @Inject constructor(
             return "\"explorer.exe\""
         }
 
-        // Find which drive letter is mapped to the GOG games directory
-        val gogGamesPath = GOGConstants.defaultGOGGamesPath
-        var gogDriveLetter: String? = null
-
-        for (drive in Container.drivesIterator(container.drives)) {
-            if (drive[1] == gogGamesPath) {
-                gogDriveLetter = drive[0]
-                break
-            }
-        }
-
+        // Ensure this specific game directory is mapped (isolates from other GOG games)
+        val gogDriveLetter = app.gamenative.utils.ContainerUtils.ensureGOGGameDirectoryMapped(
+            context, 
+            container, 
+            gameInstallPath
+        )
+        
         if (gogDriveLetter == null) {
-            Timber.e("GOG games directory not mapped in container drives: $gogGamesPath")
-            Timber.e("Container drives: ${container.drives}")
+            Timber.e("Failed to map GOG game directory: $gameInstallPath")
             return "\"explorer.exe\""
         }
 
-        Timber.i("Found GOG games directory mapped to $gogDriveLetter: drive")
+        Timber.i("GOG game directory mapped to $gogDriveLetter: drive")
 
-        // Calculate the Windows path for the game subdirectory
-        val gameSubDirRelativePath = gameDir.relativeTo(File(GOGConstants.defaultGOGGamesPath)).path.replace('\\', '/')
-        val windowsGamePath = "$gogDriveLetter:/$gameSubDirRelativePath"
+        // Calculate the Windows path relative to the game install directory
+        val gameInstallDir = File(gameInstallPath)
+        val execFile = File(gameInstallPath, executablePath)
+        val relativePath = execFile.relativeTo(gameInstallDir).path.replace('/', '\\')
+        val windowsPath = "$gogDriveLetter:\\$relativePath"
 
-        // Set WINEPATH to the game subdirectory
-        envVars.put("WINEPATH", windowsGamePath)
+        // Set WINEPATH to the game directory root
+        envVars.put("WINEPATH", "$gogDriveLetter:\\")
 
-        // Set the working directory to the game directory
-        val gameWorkingDir = File(GOGConstants.defaultGOGGamesPath, gameSubDirRelativePath)
-        guestProgramLauncherComponent.workingDir = gameWorkingDir
-        Timber.i("Setting working directory to: ${gameWorkingDir.absolutePath}")
+        // Set the working directory to the executable's directory
+        val execWorkingDir = execFile.parentFile
+        if (execWorkingDir != null) {
+            guestProgramLauncherComponent.workingDir = execWorkingDir
+            Timber.i("Setting working directory to: ${execWorkingDir.absolutePath}")
+        } else {
+            guestProgramLauncherComponent.workingDir = gameDir
+            Timber.i("Setting working directory to game root: ${gameDir.absolutePath}")
+        }
 
-        val executableName = File(executablePath).name
-        Timber.i("GOG game executable name: $executableName")
-        Timber.i("GOG game Windows path: $windowsGamePath")
-        Timber.i("GOG game subdirectory relative path: $gameSubDirRelativePath")
+        Timber.i("GOG game executable: $executablePath")
+        Timber.i("GOG game Windows path: $windowsPath")
 
-        // Determine structure type by checking if game_* subdirectory exists
-        val isV2Structure = gameDir.listFiles()?.any {
-            it.isDirectory && it.name.startsWith("game_$gameId")
-        } ?: false
-        Timber.i("Game structure type: ${if (isV2Structure) "V2" else "V1"}")
-
-        val fullCommand = "\"$windowsGamePath/$executablePath\""
+        val fullCommand = "\"$windowsPath\""
 
         Timber.i("Full Wine command will be: $fullCommand")
         return fullCommand

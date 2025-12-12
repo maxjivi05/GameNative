@@ -109,7 +109,7 @@ fun LibraryBottomSheet(
                 onClick = { onSourceToggle(GameSource.GOG) },
                 label = { Text(text = "GOG") },
                 selected = showGOG,
-                leadingIcon = { 
+                leadingIcon = {
                     Icon(
                         painter = painterResource(R.drawable.ic_gog),
                         contentDescription = "GOG",
