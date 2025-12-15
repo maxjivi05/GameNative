@@ -41,10 +41,6 @@ object GOGConstants {
     val externalGOGGamesPath: String
         get() = Paths.get(PrefManager.externalStoragePath, "GOG", "games", "common").toString()
 
-    /**
-     * Default GOG games installation path based on storage preference
-     * Follows the same logic as Steam games
-     */
     val defaultGOGGamesPath: String
         get() {
             return if (PrefManager.useExternalStorage && File(PrefManager.externalStoragePath).exists()) {
@@ -56,10 +52,6 @@ object GOGConstants {
             }
         }
 
-    /**
-     * Get the install path for a specific GOG game
-     * Similar to Steam's pattern: {base}/GOG/games/common/{sanitized_title}/
-     */
     fun getGameInstallPath(gameTitle: String): String {
         // Sanitize game title for filesystem
         val sanitizedTitle = gameTitle.replace(Regex("[^a-zA-Z0-9 ]"), "").trim()

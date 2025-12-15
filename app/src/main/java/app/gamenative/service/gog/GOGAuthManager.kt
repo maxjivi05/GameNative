@@ -9,26 +9,20 @@ import java.io.File
 /**
  * Manages GOG authentication and account operations.
  *
- * Responsibilities:
  * - OAuth2 authentication flow
  * - Credential storage and validation
  * - Token refresh
  * - Account logout
- *
+ * ! Note: We currently don't use redirect flow due to Pluvia Issues
  * Uses GOGPythonBridge for all GOGDL command execution.
  */
 object GOGAuthManager {
 
-    /**
-     * Get the auth config file path for a context
-     */
+
     fun getAuthConfigPath(context: Context): String {
         return "${context.filesDir}/gog_auth.json"
     }
 
-    /**
-     * Check if user is authenticated by checking if auth file exists
-     */
     fun hasStoredCredentials(context: Context): Boolean {
         val authFile = File(getAuthConfigPath(context))
         return authFile.exists()
@@ -37,10 +31,6 @@ object GOGAuthManager {
     /**
      * Authenticate with GOG using authorization code from OAuth2 flow
      * Users must visit GOG login page, authenticate, and copy the authorization code
-     *
-     * @param context Android context
-     * @param authorizationCode OAuth2 authorization code (or full redirect URL)
-     * @return Result containing GOGCredentials or error
      */
     suspend fun authenticateWithCode(context: Context, authorizationCode: String): Result<GOGCredentials> {
         return try {
@@ -187,11 +177,6 @@ object GOGAuthManager {
         }
     }
 
-    // ========== Private Helper Methods ==========
-
-    /**
-     * Extract authorization code from user input (URL or raw code)
-     */
     private fun extractCodeFromInput(input: String): String {
         return if (input.startsWith("http")) {
             // Extract code parameter from URL
@@ -209,9 +194,6 @@ object GOGAuthManager {
         }
     }
 
-    /**
-     * Parse authentication result from GOGDL output and auth file
-     */
     private fun parseAuthenticationResult(authConfigPath: String, gogdlOutput: String): Result<GOGCredentials> {
         try {
             Timber.d("Attempting to parse GOGDL output as JSON (length: ${gogdlOutput.length})")
@@ -268,9 +250,6 @@ object GOGAuthManager {
         }
     }
 
-    /**
-     * Parse GOGCredentials from GOGDL command output
-     */
     private fun parseCredentialsFromOutput(output: String): Result<GOGCredentials> {
         try {
             val credentialsJson = JSONObject(output.trim())
@@ -303,9 +282,6 @@ object GOGAuthManager {
         }
     }
 
-    /**
-     * Parse full GOGCredentials from auth file
-     */
     private fun parseFullCredentialsFromFile(authConfigPath: String): GOGCredentials {
         return try {
             val authFile = File(authConfigPath)
@@ -347,10 +323,6 @@ object GOGAuthManager {
             )
         }
     }
-
-    /**
-     * Create GOGCredentials from JSON output
-     */
     private fun createCredentialsFromJson(outputJson: JSONObject): GOGCredentials {
         return GOGCredentials(
             accessToken = outputJson.optString("access_token", ""),

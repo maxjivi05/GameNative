@@ -70,13 +70,6 @@ class GOGManager @Inject constructor(
     // Simple cache for download sizes
     private val downloadSizeCache = mutableMapOf<String, String>()
 
-    // ==========================================================================
-    // DATABASE OPERATIONS
-    // ==========================================================================
-
-    /**
-     * Get a GOG game by ID from database
-     */
     suspend fun getGameById(gameId: String): GOGGame? {
         return withContext(Dispatchers.IO) {
             try {
@@ -98,30 +91,18 @@ class GOGManager @Inject constructor(
         }
     }
 
-    /**
-     * Update a GOG game in database
-     */
     suspend fun updateGame(game: GOGGame) {
         withContext(Dispatchers.IO) {
             gogGameDao.update(game)
         }
     }
 
-    /**
-     * Get all GOG games as a Flow
-     */
+
     fun getAllGames(): Flow<List<GOGGame>> {
         return gogGameDao.getAll()
     }
 
-    // ==========================================================================
-    // LIBRARY SYNCING
-    // ==========================================================================
 
-    /**
-     * Start background library sync
-     * Progressively fetches and updates the GOG library in the background
-     */
     suspend fun startBackgroundSync(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!GOGAuthManager.hasStoredCredentials(context)) {
@@ -245,9 +226,6 @@ class GOGManager @Inject constructor(
         }
     }
 
-    /**
-     * Parse a single game object from JSON
-     */
     private fun parseGameObject(gameObj: JSONObject): GOGGame {
         val genresList = parseJsonArray(gameObj.optJSONArray("genres"))
         val languagesList = parseJsonArray(gameObj.optJSONArray("languages"))
@@ -273,9 +251,6 @@ class GOGManager @Inject constructor(
         )
     }
 
-    /**
-     * Parse a JSON array into a list of strings
-     */
     private fun parseJsonArray(jsonArray: org.json.JSONArray?): List<String> {
         val result = mutableListOf<String>()
         if (jsonArray != null) {
@@ -286,9 +261,6 @@ class GOGManager @Inject constructor(
         return result
     }
 
-    /**
-     * Fetch a single game's metadata from GOG API and insert it into the database
-     */
     suspend fun refreshSingleGame(gameId: String, context: Context): Result<GOGGame?> {
         return try {
             Timber.i("Fetching single game data for gameId: $gameId")
@@ -326,13 +298,6 @@ class GOGManager @Inject constructor(
         }
     }
 
-    // ==========================================================================
-    // DOWNLOAD & INSTALLATION
-    // ==========================================================================
-
-    /**
-     * Download a GOG game with full progress tracking
-     */
     suspend fun downloadGame(context: Context, gameId: String, installPath: String, downloadInfo: DownloadInfo): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
@@ -389,9 +354,6 @@ class GOGManager @Inject constructor(
         }
     }
 
-    /**
-     * Delete a GOG game
-     */
     fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
         try {
             val gameId = libraryItem.gameId.toString()
@@ -448,13 +410,6 @@ class GOGManager @Inject constructor(
         }
     }
 
-    // ==========================================================================
-    // INSTALLATION STATUS & VERIFICATION
-    // ==========================================================================
-
-    /**
-     * Check if a GOG game is installed
-     */
     fun isGameInstalled(context: Context, libraryItem: LibraryItem): Boolean {
         try {
             val appDirPath = getAppDirPath(libraryItem.appId)
@@ -481,9 +436,7 @@ class GOGManager @Inject constructor(
         }
     }
 
-    /**
-     * Verify that a GOG game installation is valid and complete
-     */
+
     fun verifyInstallation(gameId: String): Pair<Boolean, String?> {
         val game = runBlocking { getGameById(gameId) }
         val installPath = game?.installPath
@@ -510,9 +463,7 @@ class GOGManager @Inject constructor(
         return Pair(true, null)
     }
 
-    /**
-     * Check if game has a partial download
-     */
+
     fun hasPartialDownload(libraryItem: LibraryItem): Boolean {
         try {
             val appDirPath = getAppDirPath(libraryItem.appId)
@@ -537,13 +488,6 @@ class GOGManager @Inject constructor(
         }
     }
 
-    // ==========================================================================
-    // EXECUTABLE DISCOVERY & LAUNCH
-    // ==========================================================================
-
-    /**
-     * Get the executable path for an installed GOG game
-     */
     suspend fun getInstalledExe(context: Context, libraryItem: LibraryItem): String = withContext(Dispatchers.IO) {
         val gameId = libraryItem.gameId.toString()
         try {
@@ -662,7 +606,7 @@ class GOGManager @Inject constructor(
                 break
             }
         }
-        
+
         if (gogDriveLetter == null) {
             Timber.e("GOG game directory not mapped to any drive: $gameInstallPath")
             return "\"explorer.exe\""
@@ -756,20 +700,12 @@ class GOGManager @Inject constructor(
         return formattedSize
     }
 
-    /**
-     * Get cached download size if available
-     */
+
     fun getCachedDownloadSize(gameId: String): String? {
         return downloadSizeCache[gameId]
     }
 
-    // ==========================================================================
-    // UTILITY & CONVERSION
-    // ==========================================================================
 
-    /**
-     * Create a LibraryItem from GOG game data
-     */
     fun createLibraryItem(appId: String, gameId: String, context: Context): LibraryItem {
         val gogGame = runBlocking { getGameById(gameId) }
         return LibraryItem(
@@ -780,18 +716,12 @@ class GOGManager @Inject constructor(
         )
     }
 
-    /**
-     * Get store URL for game
-     */
     fun getStoreUrl(libraryItem: LibraryItem): Uri {
         val gogGame = runBlocking { getGameById(libraryItem.gameId.toString()) }
         val slug = gogGame?.slug ?: ""
         return "https://www.gog.com/en/game/$slug".toUri()
     }
 
-    /**
-     * Convert GOGGame to SteamApp format for UI compatibility
-     */
     fun convertToSteamApp(gogGame: GOGGame): SteamApp {
         val releaseTimestamp = parseReleaseDate(gogGame.releaseDate)
         val appId = gogGame.id.toIntOrNull() ?: gogGame.id.hashCode()
@@ -833,24 +763,13 @@ class GOGManager @Inject constructor(
         return 0L
     }
 
-    /**
-     * Check if game is valid to download
-     */
+
     fun isValidToDownload(library: LibraryItem): Boolean {
         return true // GOG games are always downloadable if owned
     }
 
-    /**
-     * Check if update is pending for a game (stub)
-     */
     suspend fun isUpdatePending(libraryItem: LibraryItem): Boolean {
         return false // Not implemented yet
     }
 
-    /**
-     * Run before launch (no-op for GOG games)
-     */
-    fun runBeforeLaunch(context: Context, libraryItem: LibraryItem) {
-        // Don't run anything before launch for GOG games
-    }
 }
