@@ -66,9 +66,6 @@ import kotlinx.coroutines.launch
 import app.gamenative.utils.LocaleHelper
 import app.gamenative.ui.component.dialog.GOGLoginDialog
 import app.gamenative.service.gog.GOGService
-import app.gamenative.service.gog.GOGManager
-import dagger.hilt.android.EntryPointAccessors
-import app.gamenative.di.DatabaseModule
 
 @Composable
 fun SettingsGroupInterface(
@@ -78,25 +75,6 @@ fun SettingsGroupInterface(
     onPaletteStyle: (PaletteStyle) -> Unit,
 ) {
     val context = LocalContext.current
-
-    // Get GOGGameDao and GOGManager from Hilt
-    val gogGameDao = remember {
-        val appContext = context.applicationContext
-        val entryPoint = EntryPointAccessors.fromApplication(
-            appContext,
-            DatabaseEntryPoint::class.java
-        )
-        entryPoint.gogGameDao()
-    }
-
-    val gogManager = remember {
-        val appContext = context.applicationContext
-        val entryPoint = EntryPointAccessors.fromApplication(
-            appContext,
-            DatabaseEntryPoint::class.java
-        )
-        entryPoint.gogManager()
-    }
 
     var openWebLinks by rememberSaveable { mutableStateOf(PrefManager.openWebLinksExternally) }
 
@@ -173,7 +151,7 @@ fun SettingsGroupInterface(
 
                         // Sync the library using refreshLibrary which handles database updates
                         timber.log.Timber.i("[SettingsGOG]: Syncing GOG library...")
-                        val syncResult = gogManager.refreshLibrary(context)
+                        val syncResult = GOGService.refreshLibrary(context)
 
                         if (syncResult.isSuccess) {
                             val count = syncResult.getOrNull() ?: 0
@@ -308,8 +286,8 @@ fun SettingsGroupInterface(
                     try {
                         timber.log.Timber.i("[SettingsGOG]: Syncing GOG library...")
 
-                        // Use GOGManager.refreshLibrary() which handles everything
-                        val result = gogManager.refreshLibrary(context)
+                        // Use GOGService.refreshLibrary() which handles everything
+                        val result = GOGService.refreshLibrary(context)
 
                         if (result.isSuccess) {
                             val count = result.getOrNull() ?: 0
@@ -626,7 +604,7 @@ fun SettingsGroupInterface(
 
                         // Sync the library
                         timber.log.Timber.i("[SettingsGOG]: Syncing GOG library...")
-                        val syncResult = gogManager.refreshLibrary(context)
+                        val syncResult = GOGService.refreshLibrary(context)
 
                         if (syncResult.isSuccess) {
                             val count = syncResult.getOrNull() ?: 0
@@ -725,12 +703,4 @@ private fun Preview_SettingsScreen() {
     }
 }
 
-/**
- * Hilt EntryPoint to access DAOs from Composables
- */
-    @dagger.hilt.EntryPoint
-    @dagger.hilt.InstallIn(dagger.hilt.components.SingletonComponent::class)
-    interface DatabaseEntryPoint {
-        fun gogGameDao(): app.gamenative.db.dao.GOGGameDao
-        fun gogManager(): GOGManager
-    }
+
