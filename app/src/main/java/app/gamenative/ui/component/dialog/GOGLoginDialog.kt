@@ -68,12 +68,12 @@ fun GOGLoginDialog(
                             try {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GOGConstants.GOG_AUTH_LOGIN_URL))
                                 context.startActivity(intent)
-                            } caToast.makeText(
+                            } catch (e: Exception) {
+                                Toast.makeText(
                                     context,
                                     context.getString(R.string.gog_login_browser_error),
                                     Toast.LENGTH_SHORT
-                                ).show()tch (e: Exception) {
-
+                                ).show()
                             }
                         },
                         enabled = !isLoading,
