@@ -19,9 +19,6 @@ import java.io.File
  */
 object GOGAuthManager {
 
-    // GOG OAuth2 client ID
-    private const val GOG_CLIENT_ID = "46899977096215655"
-
     /**
      * Get the auth config file path for a context
      */
@@ -317,8 +314,8 @@ object GOGAuthManager {
                 val authJson = JSONObject(authContent)
 
                 // GOGDL stores credentials nested under client ID
-                val credentialsJson = if (authJson.has(GOG_CLIENT_ID)) {
-                    authJson.getJSONObject(GOG_CLIENT_ID)
+                val credentialsJson = if (authJson.has(GOGConstants.GOG_CLIENT_ID)) {
+                    authJson.getJSONObject(GOGConstants.GOG_CLIENT_ID)
                 } else {
                     // Fallback: try to read from root level
                     authJson

@@ -29,12 +29,9 @@ class ProgressCallback(private val downloadInfo: DownloadInfo) {
 }
 
 /**
- * Low-level Python execution bridge for GOGDL commands.
+ * This an execution Bridge for Python GOGDL functionality
  *
- * This is a pure abstraction layer over Chaquopy Python interpreter.
- * Contains NO business logic - just Python initialization and command execution.
- *
- * All GOG-specific functionality should use this bridge but NOT be implemented here.
+ * This is purely to initialize and execute GOGDL commands as an abstraction layer to reduce duplication.
  */
 object GOGPythonBridge {
     private var python: Python? = null
@@ -69,10 +66,7 @@ object GOGPythonBridge {
     fun isReady(): Boolean = isInitialized && Python.isStarted()
 
     /**
-     * Execute GOGDL command using Chaquopy
-     *
-     * This is the foundational method that all GOGDL operations use.
-     *
+     * Executes Python GOGDL commands using Chaquopy (Java-Python lib)
      * @param args Command line arguments to pass to gogdl CLI
      * @return Result containing command output or error
      */
@@ -94,7 +88,6 @@ object GOGPythonBridge {
                 val originalArgv = sys.get("argv")
 
                 try {
-                    // Import gogdl.cli module
                     Timber.d("Importing gogdl.cli module...")
                     val gogdlCli = python.getModule("gogdl.cli")
                     Timber.d("gogdl.cli module imported successfully")

@@ -1302,14 +1302,14 @@ private fun getWineStartCommand(
     } else if (isGOGGame) {
         // For GOG games, use GOGService to get the launch command
         Timber.tag("XServerScreen").i("Launching GOG game: $gameId")
-        
+
         // Create a LibraryItem from the appId
         val libraryItem = LibraryItem(
             appId = appId,
             name = "", // Name not needed for launch command
             gameSource = GameSource.GOG
         )
-        
+
         val gogCommand = GOGService.getWineStartCommand(
             context = context,
             libraryItem = libraryItem,
@@ -1319,7 +1319,7 @@ private fun getWineStartCommand(
             envVars = envVars,
             guestProgramLauncherComponent = guestProgramLauncherComponent
         )
-        
+
         Timber.tag("XServerScreen").i("GOG launch command: $gogCommand")
         return "winhandler.exe $gogCommand"
     } else if (isCustomGame) {

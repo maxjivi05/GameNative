@@ -65,18 +65,4 @@ object GOGConstants {
         val sanitizedTitle = gameTitle.replace(Regex("[^a-zA-Z0-9 ]"), "").trim()
         return Paths.get(defaultGOGGamesPath, sanitizedTitle).toString()
     }
-
-    /**
-     * Get the auth config path
-     */
-    fun getAuthConfigPath(): String {
-        return "/data/data/app.gamenative/files/gog_auth.json"
-    }
-
-    /**
-     * Get the support directory path (for redistributables)
-     */
-    fun getSupportPath(): String {
-        return "/data/data/app.gamenative/files/gog-support"
-    }
 }
