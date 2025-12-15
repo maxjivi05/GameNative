@@ -4,18 +4,17 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
-import androidx.room.Room
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.GOGCredentials
 import app.gamenative.data.GOGGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
-import app.gamenative.db.PluviaDatabase
-import app.gamenative.db.DATABASE_NAME
 import app.gamenative.service.NotificationHelper
+import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
 import timber.log.Timber
+import javax.inject.Inject
 
 /**
  * GOG Service - thin coordinator that delegates to specialized managers.
@@ -28,6 +27,7 @@ import timber.log.Timber
  * This service maintains backward compatibility through static accessors
  * while delegating all operations to the appropriate managers.
  */
+@AndroidEntryPoint
 class GOGService : Service() {
 
     companion object {
@@ -273,8 +273,9 @@ class GOGService : Service() {
 
         /**
          * Download a GOG game with full progress tracking
+         * Launches download in service scope so it runs independently
          */
-        suspend fun downloadGame(context: Context, gameId: String, installPath: String): Result<DownloadInfo?> {
+        fun downloadGame(context: Context, gameId: String, installPath: String): Result<DownloadInfo?> {
             val instance = getInstance() ?: return Result.failure(Exception("Service not available"))
 
             // Create DownloadInfo for progress tracking
@@ -283,13 +284,25 @@ class GOGService : Service() {
             // Track in activeDownloads first
             instance.activeDownloads[gameId] = downloadInfo
 
-            // Delegate to GOGManager
-            val result = instance.gogManager.downloadGame(context, gameId, installPath, downloadInfo)
+            // Launch download in service scope so it runs independently
+            instance.scope.launch {
+                try {
+                    Timber.d("[Download] Starting download for game $gameId")
+                    val result = instance.gogManager.downloadGame(context, gameId, installPath, downloadInfo)
 
-            if (result.isFailure) {
-                // Remove from active downloads on failure
-                instance.activeDownloads.remove(gameId)
-                return Result.failure(result.exceptionOrNull() ?: Exception("Download failed"))
+                    if (result.isFailure) {
+                        Timber.e(result.exceptionOrNull(), "[Download] Failed for game $gameId")
+                        downloadInfo.setProgress(-1.0f)
+                    } else {
+                        Timber.i("[Download] Completed successfully for game $gameId")
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "[Download] Exception for game $gameId")
+                    downloadInfo.setProgress(-1.0f)
+                } finally {
+                    // Keep in activeDownloads so UI can check status
+                    Timber.d("[Download] Finished for game $gameId, progress: ${downloadInfo.getProgress()}")
+                }
             }
 
             return Result.success(downloadInfo)
@@ -309,25 +322,20 @@ class GOGService : Service() {
     // ==========================================================================
 
     private lateinit var notificationHelper: NotificationHelper
-    private lateinit var gogManager: GOGManager
+
+    @Inject
+    lateinit var gogManager: GOGManager
+
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     // Track active downloads by game ID
     private val activeDownloads = ConcurrentHashMap<String, DownloadInfo>()
 
+    // GOGManager is injected by Hilt
     override fun onCreate() {
         super.onCreate()
         instance = this
 
-        // Initialize GOGManager with database DAO
-        val database = Room.databaseBuilder(
-            applicationContext,
-            PluviaDatabase::class.java,
-            DATABASE_NAME
-        ).build()
-        gogManager = GOGManager(database.gogGameDao())
-
-        Timber.d("GOGService.onCreate() - gogManager initialized")
 
         // Initialize notification helper for foreground service
         notificationHelper = NotificationHelper(applicationContext)

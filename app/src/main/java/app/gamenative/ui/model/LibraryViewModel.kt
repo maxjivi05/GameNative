@@ -114,8 +114,10 @@ class LibraryViewModel @Inject constructor(
             gogGameDao.getAll().collect { games ->
                 Timber.tag("LibraryViewModel").d("Collecting ${games.size} GOG games")
 
-                if (gogGameList.size != games.size) {
-                    gogGameList = games
+                val sizeChanged = gogGameList.size != games.size
+                gogGameList = games
+
+                if (sizeChanged) {
                     onFilterApps(paginationCurrentPage)
                 }
             }
@@ -354,6 +356,8 @@ class LibraryViewModel @Inject constructor(
                     isInstalled = game.isInstalled,
                 )
             }
+            // Calculate GOG installed count
+            val gogInstalledCount = filteredGOGGames.count { it.isInstalled }
 
             // Save game counts for skeleton loaders (only when not searching, to get accurate counts)
             // This needs to happen before filtering by source, so we save the total counts
@@ -361,7 +365,7 @@ class LibraryViewModel @Inject constructor(
                 PrefManager.customGamesCount = customGameItems.size
                 PrefManager.steamGamesCount = filteredSteamApps.size
                 PrefManager.gogGamesCount = filteredGOGGames.size
-                Timber.tag("LibraryViewModel").d("Saved counts - Custom: ${customGameItems.size}, Steam: ${filteredSteamApps.size}, GOG: ${filteredGOGGames.size}")
+                Timber.tag("LibraryViewModel").d("Saved counts - Custom: ${customGameItems.size}, Steam: ${filteredSteamApps.size}, GOG: ${filteredGOGGames.size}, GOG installed: $gogInstalledCount")
             }
 
             // Apply App Source filters
@@ -408,6 +412,7 @@ class LibraryViewModel @Inject constructor(
                     currentPaginationPage = paginationPage + 1, // visual display is not 0 indexed
                     lastPaginationPage = lastPageInCurrentFilter + 1,
                     totalAppsInFilter = totalFound,
+                    gogInstalledCount = gogInstalledCount,
                     isLoading = false, // Loading complete
                 )
             }

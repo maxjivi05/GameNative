@@ -334,46 +334,58 @@ class GOGManager @Inject constructor(
      * Download a GOG game with full progress tracking
      */
     suspend fun downloadGame(context: Context, gameId: String, installPath: String, downloadInfo: DownloadInfo): Result<Unit> {
-        return try {
-            Timber.i("Starting GOGDL download for game $gameId")
+        return withContext(Dispatchers.IO) {
+            try {
+                Timber.i("[Download] Starting GOGDL download for game $gameId to $installPath")
 
-            val installDir = File(installPath)
-            if (!installDir.exists()) {
-                installDir.mkdirs()
-            }
+                val installDir = File(installPath)
+                if (!installDir.exists()) {
+                    Timber.d("[Download] Creating install directory: $installPath")
+                    installDir.mkdirs()
+                }
 
-            // Create support directory for redistributables
-            val supportDir = File(installDir.parentFile, "gog-support")
-            supportDir.mkdirs()
+                // Create support directory for redistributables
+                val supportDir = File(installDir.parentFile, "gog-support")
+                if (!supportDir.exists()) {
+                    Timber.d("[Download] Creating support directory: ${supportDir.absolutePath}")
+                    supportDir.mkdirs()
+                }
 
-            val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
-            val numericGameId = ContainerUtils.extractGameIdFromContainerId(gameId).toString()
+                val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+                val numericGameId = ContainerUtils.extractGameIdFromContainerId(gameId).toString()
 
-            val result = GOGPythonBridge.executeCommandWithCallback(
-                downloadInfo,
-                "--auth-config-path", authConfigPath,
-                "download", numericGameId,
-                "--platform", "windows",
-                "--path", installPath,
-                "--support", supportDir.absolutePath,
-                "--skip-dlcs",
-                "--lang", "en-US",
-                "--max-workers", "1",
-            )
+                Timber.d("[Download] Calling GOGPythonBridge with gameId=$numericGameId, authConfig=$authConfigPath")
 
-            if (result.isSuccess) {
-                downloadInfo.setProgress(1.0f)
-                Timber.i("GOGDL download completed successfully")
-                Result.success(Unit)
-            } else {
+                // Initialize progress
+                downloadInfo.setProgress(0.0f)
+
+                val result = GOGPythonBridge.executeCommandWithCallback(
+                    downloadInfo,
+                    "--auth-config-path", authConfigPath,
+                    "download", numericGameId,
+                    "--platform", "windows",
+                    "--path", installPath,
+                    "--support", supportDir.absolutePath,
+                    "--skip-dlcs",
+                    "--lang", "en-US",
+                    "--max-workers", "1",
+                )
+
+                if (result.isSuccess) {
+                    downloadInfo.setProgress(1.0f)
+                    Timber.i("[Download] GOGDL download completed successfully for game $gameId")
+                    Result.success(Unit)
+                } else {
+                    downloadInfo.setProgress(-1.0f)
+                    val error = result.exceptionOrNull()
+                    Timber.e(error, "[Download] GOGDL download failed for game $gameId")
+                    Result.failure(error ?: Exception("Download failed"))
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "[Download] Exception during download for game $gameId")
                 downloadInfo.setProgress(-1.0f)
-                val error = result.exceptionOrNull()
-                Timber.e(error, "GOGDL download failed")
-                Result.failure(error ?: Exception("Download failed"))
+                Result.failure(e)
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to start GOG game download")
-            Result.failure(e)
         }
     }
 
