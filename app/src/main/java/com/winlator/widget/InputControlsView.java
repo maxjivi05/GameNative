@@ -80,6 +80,7 @@ public class InputControlsView extends View {
 
     public void setEditMode(boolean editMode) {
         this.editMode = editMode;
+        invalidate(); // Trigger redraw to show/hide grid background immediately
     }
 
     public void setOverlayOpacity(float overlayOpacity) {
@@ -160,8 +161,11 @@ public class InputControlsView extends View {
     public synchronized boolean addElement() {
         if (editMode && profile != null) {
             ControlElement element = new ControlElement(this);
-            element.setX(cursor.x);
-            element.setY(cursor.y);
+            // Calculate center position, snapped to grid
+            int centerX = (int)Mathf.roundTo(getMaxWidth() * 0.5f, snappingSize);
+            int centerY = (int)Mathf.roundTo(getMaxHeight() * 0.5f, snappingSize);
+            element.setX(centerX);
+            element.setY(centerY);
             profile.addElement(element);
             profile.save();
             selectElement(element);
@@ -360,7 +364,8 @@ public class InputControlsView extends View {
                     }
                     break;
                 }
-                case MotionEvent.ACTION_UP: {
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL: {
                     if (selectedElement != null && profile != null) profile.save();
                     if (moveCursor) cursor.set((int)Mathf.roundTo(event.getX(), snappingSize), (int)Mathf.roundTo(event.getY(), snappingSize));
                     invalidate();
@@ -427,7 +432,6 @@ public class InputControlsView extends View {
                 ExternalControllerBinding controllerBinding = controller.getControllerBinding(event.getKeyCode());
                 if (controllerBinding != null) {
                     int action = event.getAction();
-
                     if (action == KeyEvent.ACTION_DOWN) {
                         handleInputEvent(controllerBinding.getBinding(), true);
                     }
