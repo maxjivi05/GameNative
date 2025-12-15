@@ -18,6 +18,7 @@ import app.gamenative.service.gog.GOGConstants
 import app.gamenative.ui.theme.PluviaTheme
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 
 /**
  * GOG Login Dialog
@@ -67,8 +68,12 @@ fun GOGLoginDialog(
                             try {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(GOGConstants.GOG_AUTH_LOGIN_URL))
                                 context.startActivity(intent)
-                            } catch (e: Exception) {
-                                // Browser not available
+                            } caToast.makeText(
+                                    context,
+                                    context.getString(R.string.gog_login_browser_error),
+                                    Toast.LENGTH_SHORT
+                                ).show()tch (e: Exception) {
+
                             }
                         },
                         enabled = !isLoading,

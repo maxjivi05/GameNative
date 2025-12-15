@@ -943,6 +943,7 @@
     <string name="gog_login_auth_code_placeholder">Paste code here if needed…</string>
     <string name="gog_login_button">Login</string>
     <string name="gog_login_cancel">Cancel</string>
+    <string name="gog_login_browser_error">Could not open browser</string>
 </resources>
 
 
