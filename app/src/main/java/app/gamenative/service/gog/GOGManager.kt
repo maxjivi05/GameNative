@@ -351,59 +351,60 @@ class GOGManager @Inject constructor(
         }
     }
 
-    fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
-        try {
-            val gameId = libraryItem.gameId.toString()
-            val installPath = getGameInstallPath(context, gameId, libraryItem.name)
-            val installDir = File(installPath)
+    suspend fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val gameId = libraryItem.gameId.toString()
+                val installPath = getGameInstallPath(context, gameId, libraryItem.name)
+                val installDir = File(installPath)
 
-            // Delete the manifest file
-            val manifestPath = File(context.filesDir, "manifests/$gameId")
-            if (manifestPath.exists()) {
-                manifestPath.delete()
-                Timber.i("Deleted manifest file for game $gameId")
-            }
-
-            if (installDir.exists()) {
-                val success = installDir.deleteRecursively()
-                if (success) {
-                    Timber.i("Successfully deleted game directory: $installPath")
-
-                    // Remove all markers
-                    val appDirPath = getAppDirPath(libraryItem.appId)
-                    MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
-                    MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
-
-                    // Update database
-                    val game = runBlocking { getGameById(gameId) }
-                    if (game != null) {
-                        val updatedGame = game.copy(isInstalled = false, installPath = "")
-                        runBlocking { gogGameDao.update(updatedGame) }
-                    }
-
-                    return Result.success(Unit)
-                } else {
-                    return Result.failure(Exception("Failed to delete game directory"))
+                // Delete the manifest file
+                val manifestPath = File(context.filesDir, "manifests/$gameId")
+                if (manifestPath.exists()) {
+                    manifestPath.delete()
+                    Timber.i("Deleted manifest file for game $gameId")
                 }
-            } else {
-                Timber.w("GOG game directory doesn't exist: $installPath")
-                // Clean up markers anyway
+
+                // Delete game files
+                if (installDir.exists()) {
+                    val success = installDir.deleteRecursively()
+                    if (success) {
+                        Timber.i("Successfully deleted game directory: $installPath")
+                    } else {
+                        Timber.w("Failed to delete some game files")
+                    }
+                } else {
+                    Timber.w("GOG game directory doesn't exist: $installPath")
+                }
+
+                // Remove all markers
                 val appDirPath = getAppDirPath(libraryItem.appId)
                 MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
                 MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
 
-                // Update database
-                val game = runBlocking { getGameById(gameId) }
+                // Update database - mark as not installed
+                val game = getGameById(gameId)
                 if (game != null) {
                     val updatedGame = game.copy(isInstalled = false, installPath = "")
-                    runBlocking { gogGameDao.update(updatedGame) }
+                    gogGameDao.update(updatedGame)
+                    Timber.d("Updated database: game marked as not installed")
                 }
 
-                return Result.success(Unit)
+                // Delete container (must run on Main thread)
+                withContext(Dispatchers.Main) {
+                    ContainerUtils.deleteContainer(context, libraryItem.appId)
+                }
+
+                // Trigger library refresh event
+                app.gamenative.PluviaApp.events.emitJava(
+                    app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(libraryItem.gameId)
+                )
+
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to delete GOG game ${libraryItem.gameId}")
+                Result.failure(e)
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to delete GOG game ${libraryItem.gameId}")
-            return Result.failure(e)
         }
     }
 

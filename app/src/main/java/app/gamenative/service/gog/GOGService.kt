@@ -264,6 +264,15 @@ class GOGService : Service() {
             return getInstance()?.gogManager?.refreshSingleGame(gameId, context)
                 ?: Result.failure(Exception("Service not available"))
         }
+
+        /**
+         * Delete/uninstall a GOG game
+         * Delegates to GOGManager.deleteGame
+         */
+        suspend fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
+            return getInstance()?.gogManager?.deleteGame(context, libraryItem)
+                ?: Result.failure(Exception("Service not available"))
+        }
     }
 
     private lateinit var notificationHelper: NotificationHelper

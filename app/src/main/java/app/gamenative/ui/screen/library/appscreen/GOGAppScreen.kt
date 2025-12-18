@@ -426,48 +426,17 @@ class GOGAppScreen : BaseAppScreen() {
 
     /**
      * Perform the actual uninstall of a GOG game
+     * Delegates to GOGService/GOGManager for proper service layer separation
      */
     private fun performUninstall(context: Context, libraryItem: LibraryItem) {
         Timber.i("Uninstalling GOG game: ${libraryItem.appId}")
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                // For GOG games, appId is already the numeric game ID
-                val gameId = libraryItem.appId
+                // Delegate to GOGService which calls GOGManager.deleteGame
+                val result = GOGService.deleteGame(context, libraryItem)
 
-                // Get install path from GOGService
-                val game = GOGService.getGOGGameOf(gameId)
-
-                if (game != null && game.installPath.isNotEmpty()) {
-                    val installDir = File(game.installPath)
-                    if (installDir.exists()) {
-                        Timber.d("Deleting game files from: ${game.installPath}")
-                        val deleted = installDir.deleteRecursively()
-                        if (deleted) {
-                            Timber.i("Successfully deleted game files")
-                        } else {
-                            Timber.w("Failed to delete some game files")
-                        }
-                    }
-
-                    // Update database via GOGService - mark as not installed
-                    GOGService.updateGOGGame(
-                        game.copy(
-                            isInstalled = false,
-                            installPath = ""
-                        )
-                    )
-                    Timber.d("Updated database: game marked as not installed")
-
-                    // Delete container
-                    withContext(Dispatchers.Main) {
-                        ContainerUtils.deleteContainer(context, libraryItem.appId)
-                    }
-
-                    // Trigger library refresh
-                    app.gamenative.PluviaApp.events.emitJava(
-                        app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(libraryItem.gameId)
-                    )
-
+                if (result.isSuccess) {
+                    Timber.i("Successfully uninstalled GOG game: ${libraryItem.appId}")
                     withContext(Dispatchers.Main) {
                         android.widget.Toast.makeText(
                             context,
@@ -476,12 +445,13 @@ class GOGAppScreen : BaseAppScreen() {
                         ).show()
                     }
                 } else {
-                    Timber.w("Game not found in database or no install path")
+                    val error = result.exceptionOrNull()
+                    Timber.e(error, "Failed to uninstall GOG game: ${libraryItem.appId}")
                     withContext(Dispatchers.Main) {
                         android.widget.Toast.makeText(
                             context,
-                            "Game not found",
-                            android.widget.Toast.LENGTH_SHORT
+                            "Failed to uninstall game: ${error?.message}",
+                            android.widget.Toast.LENGTH_LONG
                         ).show()
                     }
                 }
