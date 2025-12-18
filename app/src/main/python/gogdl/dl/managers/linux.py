@@ -7,11 +7,11 @@ from gogdl.dl.managers.v2 import Manager
 
 class LinuxManager(Manager):
     """Android-compatible Linux download manager"""
-    
-    def __init__(self, arguments, unknown_arguments, api_handler, max_workers=2):
-        super().__init__(arguments, unknown_arguments, api_handler, max_workers)
+
+    def __init__(self, generic_manager):
+        super().__init__(generic_manager)
         self.logger = logging.getLogger("LinuxManager")
-        
+
     def download(self):
         """Download Linux game (uses similar logic to Windows)"""
         self.logger.info(f"Starting Linux download for game {self.game_id}")

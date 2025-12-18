@@ -1,6 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from io import IOBase, BytesIO
-from typing import Optional
+from typing import Optional, List
 
 @dataclass
 class CodeTable:
@@ -44,11 +44,11 @@ class HalfInstruction:
 
 @dataclass
 class AddressCache:
-    s_near = CodeTable.near_modes
-    s_same = CodeTable.same_modes
-    next_slot = 0
-    near_array = [0 for _ in range(s_near)]
-    same_array = [0 for _ in range(s_same * 256)]
+    s_near: int = field(default=CodeTable.near_modes)
+    s_same: int = field(default=CodeTable.same_modes)
+    next_slot: int = field(default=0)
+    near_array: List[int] = field(default_factory=lambda: [0] * CodeTable.near_modes)
+    same_array: List[int] = field(default_factory=lambda: [0] * (CodeTable.same_modes * 256))
 
     def update(self, addr):
         self.near_array[self.next_slot] = addr
@@ -72,7 +72,7 @@ class Context:
     dec_winoff: int = 0
 
     target_buffer: Optional[bytearray] = None
-    
+
 def build_code_table():
     table: list[Instruction] = []
     for _ in range(256):
@@ -80,7 +80,7 @@ def build_code_table():
 
     cpy_modes = 2 + CodeTable.near_modes + CodeTable.same_modes
     i = 0
-    
+
     table[i].type1 = XD3_RUN
     i+=1
     table[i].type1 = XD3_ADD

@@ -22,8 +22,15 @@ def get_info(args, unknown_args):
     build_id = ""
     installed_language = None
     info = {}
+
+    # Initialize variables to safe defaults to prevent UnboundLocalError
+    title = None
+    game_id = None
+    version_name = None
+
     if platform != "linux":
         if not info_file:
+            logger.error("Error importing, no info file found")
             print("Error importing, no info file")
             return
         f = open(info_file, "r")
@@ -77,6 +84,16 @@ def get_info(args, unknown_args):
         else:
             game_id = None
             build_id = None
+
+    # Validate that metadata was successfully loaded
+    if title is None or game_id is None or version_name is None:
+        logger.error(
+            f"Failed to load game metadata from path: {path}. "
+            f"Platform: {platform}, gameinfo exists: {os.path.exists(os.path.join(path, 'gameinfo'))}"
+        )
+        print(f"Error: Unable to load game metadata. Missing gameinfo file or invalid installation.")
+        return
+
     print(
         json.dumps(
             {
@@ -124,7 +141,7 @@ def load_game_details(path):
                 root_id = data.get("rootGameId")
             if data["gameId"] == root_id:
                 continue
-            
+
             dlcs.append(data["gameId"])
 
     return (os.path.join(base_path, f"goggame-{root_id}.info"), os.path.join(base_path, f"goggame-{root_id}.id") if build_id else None, platform, dlcs)

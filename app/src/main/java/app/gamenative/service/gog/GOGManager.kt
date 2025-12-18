@@ -28,6 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.EnumSet
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -67,8 +68,8 @@ class GOGManager @Inject constructor(
     private val gogGameDao: GOGGameDao,
 ) {
 
-    // Simple cache for download sizes
-    private val downloadSizeCache = mutableMapOf<String, String>()
+    // Thread-safe cache for download sizes
+    private val downloadSizeCache = ConcurrentHashMap<String, String>()
 
     suspend fun getGameById(gameId: String): GOGGame? {
         return withContext(Dispatchers.IO) {

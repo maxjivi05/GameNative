@@ -13,7 +13,7 @@ ZIP_64_END_OF_CD = b"\x50\x4b\x06\x06"
 class LocalFile:
     def __init__(self) -> None:
         self.relative_local_file_offset: int
-        self.version_needed: bytes 
+        self.version_needed: bytes
         self.general_purpose_bit_flag: bytes
         self.compression_method: int
         self.last_modification_time: bytes
@@ -77,7 +77,7 @@ class CentralDirectoryFile:
         self.version_made_by: bytes
         self.version_needed_to_extract: bytes
         self.general_purpose_bit_flag: bytes
-        self.compression_method: int 
+        self.compression_method: int
         self.last_modification_time: bytes
         self.last_modification_date: bytes
         self.crc32: int
@@ -91,7 +91,7 @@ class CentralDirectoryFile:
         self.ext_file_attrs: bytes
         self.relative_local_file_offset: int
         self.file_name: str
-        self.extra_field: BytesIO 
+        self.extra_field: BytesIO
         self.comment: bytes
         self.last_byte: int
         self.file_data_offset: int
@@ -134,12 +134,12 @@ class CentralDirectoryFile:
                 if cd_file.extra_field_length - cd_file.extra_field.tell() >= size:
                     field = BytesIO(cd_file.extra_field.read(size))
                 break
-            
+
             cd_file.extra_field.seek(size, 1)
 
             if cd_file.extra_field_length - cd_file.extra_field.tell() == 0:
                 break
-        
+
 
         if field:
             if cd_file.uncompressed_size == 0xFFFFFFFF:
@@ -159,7 +159,7 @@ class CentralDirectoryFile:
         cd_file.last_byte = comment_start + cd_file.file_comment_length
 
         return cd_file, comment_start + cd_file.file_comment_length
-    
+
     def is_symlink(self):
         return stat.S_ISLNK(int.from_bytes(self.ext_file_attrs, "little") >> 16)
 
@@ -191,13 +191,13 @@ class CentralDirectory:
             data = data[next_offset:]
             if record == 0:
                 continue
-            
+
             prev_i = record - 1
             if not (prev_i >= 0 and prev_i < len(central_dir.files)):
                 continue
             prev = central_dir.files[prev_i]
             prev.file_data_offset = cd_file.relative_local_file_offset - prev.compressed_size
-        
+
         return central_dir
 
 class Zip64EndOfCentralDirLocator:
@@ -213,7 +213,7 @@ class Zip64EndOfCentralDirLocator:
         zip64_end_of_cd.zip64_end_of_cd_offset = int.from_bytes(data[8:16], "little")
         zip64_end_of_cd.total_number_of_disks = int.from_bytes(data[16:20], "little")
         return zip64_end_of_cd
-    
+
     def __str__(self):
         return f"\nZIP64EOCDLocator\nDisk Number: {self.number_of_disk}\nZ64_EOCD Offset: {self.zip64_end_of_cd_offset}\nNumber of disks: {self.total_number_of_disks}"
 
@@ -292,7 +292,7 @@ class InstallerHandler:
         beginning_of_file = self.get_bytes_from_file(
             from_b=SEARCH_OFFSET, size=SEARCH_RANGE, add_archive_index=False
         )
-        
+
         self.start_of_archive_index = beginning_of_file.find(LOCAL_FILE_HEADER) + SEARCH_OFFSET
 
         # ZIP contents
@@ -301,7 +301,26 @@ class InstallerHandler:
         self.size_of_central_directory: int
         self.central_directory: CentralDirectory
 
-    def get_bytes_from_file(self, from_b=-1, size=None, add_archive_index=True, raw_response=False):
+    def get_bytes_from_file(self, from_b=-1, size=None, add_archive_index=True, raw_response=False, redirect_count=0):
+        """Get bytes from file with redirect handling and bounds checking
+
+        Args:
+            from_b: Starting byte offset
+            size: Number of bytes to read
+            add_archive_index: Whether to add archive index offset
+            raw_response: Whether to return raw response object
+            redirect_count: Current redirect depth (internal, max 5)
+
+        Returns:
+            Response object or bytes data
+        """
+        MAX_REDIRECTS = 5
+
+        if redirect_count >= MAX_REDIRECTS:
+            raise Exception(f"Too many redirects ({MAX_REDIRECTS}) when fetching bytes from {self.url}")
+
+        # Store original from_b before applying archive index
+        original_from_b = from_b
         if add_archive_index:
             from_b += self.start_of_archive_index
 
@@ -315,11 +334,23 @@ class InstallerHandler:
         response = self.session.get(self.url, headers={'Range': range_header},
                                     allow_redirects=False, stream=raw_response)
         if response.status_code == 302:
-            # Skip content-system API
+            # Skip content-system API and follow redirect
             self.url = response.headers.get('Location') or self.url
-            return self.get_bytes_from_file(from_b, size, add_archive_index, raw_response)
+            # Use original from_b and set add_archive_index=False to prevent double-applying the index
+            return self.get_bytes_from_file(original_from_b, size, add_archive_index=False,
+                                          raw_response=raw_response, redirect_count=redirect_count + 1)
+
+        # Safely extract file_size from Content-Range header if present
         if not self.file_size:
-            self.file_size = int(response.headers.get("Content-Range").split("/")[-1])
+            content_range = response.headers.get("Content-Range")
+            if content_range:
+                try:
+                    self.file_size = int(content_range.split("/")[-1])
+                except (ValueError, IndexError) as e:
+                    raise Exception(f"Invalid Content-Range header: {content_range}") from e
+            else:
+                raise Exception("Content-Range header missing and file_size not set")
+
         if raw_response:
             return response
         else:
@@ -357,7 +388,7 @@ class InstallerHandler:
         else:
             self.central_directory_offset = end_of_cd.central_directory_offset
             self.size_of_central_directory = end_of_cd.size_of_central_directory
-            self.central_directory_records = end_of_cd.central_directory_records 
+            self.central_directory_records = end_of_cd.central_directory_records
 
     def __find_central_directory(self):
         central_directory_data = self.get_bytes_from_file(

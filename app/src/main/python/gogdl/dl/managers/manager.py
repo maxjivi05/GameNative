@@ -19,7 +19,7 @@ class UnsupportedPlatform(Exception):
 
 class AndroidManager:
     """Android-compatible version of GOGDL Manager that uses threading instead of multiprocessing"""
-    
+
     def __init__(self, arguments, unknown_arguments, api_handler):
         self.arguments = arguments
         self.unknown_arguments = unknown_arguments
@@ -30,7 +30,7 @@ class AndroidManager:
         self.is_verifying = self.arguments.command == "repair"
         self.game_id = arguments.id
         self.branch = getattr(arguments, 'branch', None)
-        
+
         # Use a reasonable number of threads for Android
         if hasattr(arguments, "workers_count"):
             self.allowed_threads = min(int(arguments.workers_count), 4)  # Limit threads on mobile
@@ -43,46 +43,41 @@ class AndroidManager:
         """Download game using Android-compatible threading"""
         try:
             self.logger.info(f"Starting Android download for game {self.game_id}")
-            
+
             if self.platform == "linux":
-                # Use Linux manager with threading
-                manager = linux.LinuxManager(
-                    self.arguments,
-                    self.unknown_arguments, 
-                    self.api_handler,
-                    max_workers=self.allowed_threads
-                )
+                # Use Linux manager - pass self as generic_manager like v2.Manager
+                manager = linux.LinuxManager(self)
                 manager.download()
                 return
-            
+
             # Get builds to determine generation
             builds = self.get_builds(self.platform)
             if not builds or len(builds['items']) == 0:
                 raise Exception("No builds found")
-            
+
             # Select target build (same logic as heroic-gogdl)
             target_build = builds['items'][0]  # Default to first build
-            
+
             # Check for specific branch
             for build in builds['items']:
                 if build.get("branch") == self.branch:
                     target_build = build
                     break
-            
+
             # Check for specific build ID
             if hasattr(self.arguments, 'build') and self.arguments.build:
                 for build in builds['items']:
                     if build.get("build_id") == self.arguments.build:
                         target_build = build
                         break
-            
+
             # Store builds and target_build as instance attributes for V2 Manager
             self.builds = builds
             self.target_build = target_build
-            
+
             generation = target_build.get("generation", 2)
             self.logger.info(f"Using build {target_build.get('build_id', 'unknown')} for download (generation: {generation})")
-            
+
             # Use the correct manager based on generation - same as heroic-gogdl
             if generation == 1:
                 self.logger.info("Using V1Manager for generation 1 game")
@@ -92,9 +87,9 @@ class AndroidManager:
                 manager = v2.Manager(self)
             else:
                 raise Exception(f"Unsupported generation: {generation}")
-            
+
             manager.download()
-                
+
         except Exception as e:
             self.logger.error(f"Download failed: {e}")
             raise
@@ -130,7 +125,7 @@ class AndroidManager:
         # If Linux download ever progresses to this point, then it's time for some good party
 
         if len(self.builds["items"]) == 0:
-            self.logger.error("No builds found") 
+            self.logger.error("No builds found")
             exit(1)
         self.target_build = self.builds["items"][0]
 
@@ -177,18 +172,18 @@ class AndroidManager:
         """Calculate download size - same as heroic-gogdl"""
         try:
             self.setup_download_manager()
-            
+
             download_size_response = self.download_manager.get_download_size()
             download_size_response['builds'] = self.builds
-            
+
             # Print JSON output like heroic-gogdl does
             import json
             print(json.dumps(download_size_response))
-            
+
         except Exception as e:
             self.logger.error(f"Calculate download size failed: {e}")
             raise
-    
+
     def get_builds(self, build_platform):
         password_arg = getattr(self.arguments, 'password', None)
         password = '' if not password_arg else '&password=' + password_arg

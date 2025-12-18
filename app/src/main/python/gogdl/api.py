@@ -64,7 +64,7 @@ class ApiHandler:
     def get_user_data(self):
         # Refresh auth header before making request
         self._update_auth_header()
-        
+
         # Try the embed endpoint which is more reliable for getting owned games
         url = f'{constants.GOG_EMBED}/user/data/games'
         self.logger.info(f"Fetching user data from: {url}")
@@ -109,29 +109,52 @@ class ApiHandler:
         json_data = json.loads(response.content)
         return json_data
 
-    def get_secure_link(self, product_id, path="", generation=2, root=None):
-        """Get secure download links from GOG API"""
+    def get_secure_link(self, product_id, path="", generation=2, root=None, attempt=0, max_retries=3):
+        """Get secure download links from GOG API with bounded retry
+
+        Args:
+            product_id: GOG product ID
+            path: Optional path parameter
+            generation: API generation version (1 or 2)
+            root: Optional root parameter
+            attempt: Current attempt number (internal, default: 0)
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            List of secure URLs, or empty list if all retries exhausted
+        """
+        if attempt >= max_retries:
+            self.logger.error(f"Failed to get secure link after {max_retries} attempts for product {product_id}")
+            return []
+
         url = ""
         if generation == 2:
             url = f"{constants.GOG_CONTENT_SYSTEM}/products/{product_id}/secure_link?_version=2&generation=2&path={path}"
         elif generation == 1:
             url = f"{constants.GOG_CONTENT_SYSTEM}/products/{product_id}/secure_link?_version=2&type=depot&path={path}"
-        
+
         if root:
             url += f"&root={root}"
-        
+
         try:
             response = self.get_authenticated_request(url)
-            
+
             if response.status_code != 200:
-                self.logger.warning(f"Invalid secure link response: {response.status_code}")
-                time.sleep(0.2)
-                return self.get_secure_link(product_id, path, generation, root)
-            
-            js = response.json()
-            return js.get('urls', [])
-            
+                self.logger.warning(
+                    f"Invalid secure link response: {response.status_code} "
+                    f"(attempt {attempt + 1}/{max_retries}) for product {product_id}"
+                )
+                sleep_time = 0.2 * (2 ** attempt)
+                time.sleep(sleep_time)
+                return self.get_secure_link(product_id, path, generation, root, attempt + 1, max_retries)
+
+            return response.json().get('urls', [])
+
         except Exception as e:
-            self.logger.error(f"Failed to get secure link: {e}")
-            time.sleep(0.2)
-            return self.get_secure_link(product_id, path, generation, root)
+            self.logger.error(
+                f"Failed to get secure link: {e} "
+                f"(attempt {attempt + 1}/{max_retries}) for product {product_id}"
+            )
+            sleep_time = 0.2 * (2 ** attempt)
+            time.sleep(sleep_time)
+            return self.get_secure_link(product_id, path, generation, root, attempt + 1, max_retries)

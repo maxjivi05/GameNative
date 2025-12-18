@@ -88,7 +88,7 @@ fun GOGLoginDialog(
                         Text(stringResource(R.string.gog_login_open_button))
                     }
 
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                     // Manual code entry fallback
                     Text(

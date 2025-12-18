@@ -329,9 +329,9 @@ internal fun LibraryListPane(
                 val totalSkeletonCount = remember(state.showSteamInLibrary, state.showCustomGamesInLibrary, state.showGOGInLibrary) {
                     val customCount = if (state.showCustomGamesInLibrary) PrefManager.customGamesCount else 0
                     val steamCount = if (state.showSteamInLibrary) PrefManager.steamGamesCount else 0
-                    val gogCount = if (state.showGOGInLibrary) PrefManager.gogGamesCount else 0
-                    val total = customCount + steamCount + gogCount
-                    Timber.tag("LibraryListPane").d("Skeleton calculation - Custom: $customCount, Steam: $steamCount, GOG: $gogCount, Total: $total")
+                    val gogInstalledCount = if (state.showGOGInLibrary) PrefManager.gogInstalledGamesCount else 0
+                    val total = customCount + steamCount + gogInstalledCount
+                    Timber.tag("LibraryListPane").d("Skeleton calculation - Custom: $customCount, Steam: $steamCount, GOG installed: $gogInstalledCount, Total: $total")
                     // Show at least a few skeletons, but not more than a reasonable amount
                     if (total == 0) 6 else minOf(total, 20)
                 }
