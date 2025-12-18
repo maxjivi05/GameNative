@@ -149,6 +149,10 @@ fun SettingsGroupInterface(
                     if (result.isSuccess) {
                         timber.log.Timber.i("[SettingsGOG]: ✓ Authentication successful!")
 
+                        // Start GOGService before syncing so service is running for operations
+                        timber.log.Timber.i("[SettingsGOG]: Starting GOGService")
+                        GOGService.start(context)
+
                         // Sync the library using refreshLibrary which handles database updates
                         timber.log.Timber.i("[SettingsGOG]: Syncing GOG library...")
                         val syncResult = GOGService.refreshLibrary(context)
@@ -601,6 +605,10 @@ fun SettingsGroupInterface(
 
                     if (result.isSuccess) {
                         timber.log.Timber.i("[SettingsGOG]: ✓ Manual authentication successful!")
+
+                        // Start GOGService before syncing so service is running for operations
+                        timber.log.Timber.i("[SettingsGOG]: Starting GOGService")
+                        GOGService.start(context)
 
                         // Sync the library
                         timber.log.Timber.i("[SettingsGOG]: Syncing GOG library...")
