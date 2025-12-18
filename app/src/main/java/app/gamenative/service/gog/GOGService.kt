@@ -156,17 +156,6 @@ class GOGService : Service() {
             getInstance()?.gogManager?.updateGame(game)
         }
 
-        suspend fun insertOrUpdateGOGGame(game: GOGGame) {
-            val instance = getInstance()
-            if (instance == null) {
-                Timber.e("GOGService instance is null, cannot insert game")
-                return
-            }
-            Timber.d("Inserting game: id=${game.id}, isInstalled=${game.isInstalled}")
-            instance.gogManager.insertGame(game)
-        }
-
-
         fun isGameInstalled(gameId: String): Boolean {
             return runBlocking(Dispatchers.IO) {
                 val game = getInstance()?.gogManager?.getGameById(gameId)
