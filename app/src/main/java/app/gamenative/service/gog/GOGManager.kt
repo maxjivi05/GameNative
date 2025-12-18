@@ -99,11 +99,6 @@ class GOGManager @Inject constructor(
     }
 
 
-    fun getAllGames(): Flow<List<GOGGame>> {
-        return gogGameDao.getAll()
-    }
-
-
     suspend fun startBackgroundSync(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             if (!GOGAuthManager.hasStoredCredentials(context)) {
@@ -534,31 +529,6 @@ class GOGManager @Inject constructor(
         return Pair(true, null)
     }
 
-
-    fun hasPartialDownload(libraryItem: LibraryItem): Boolean {
-        try {
-            val appDirPath = getAppDirPath(libraryItem.appId)
-
-            val isDownloadInProgress = MarkerUtils.hasMarker(appDirPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
-            val isDownloadComplete = MarkerUtils.hasMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
-
-            if (isDownloadInProgress) {
-                return true
-            }
-
-            if (!isDownloadComplete) {
-                val installPath = GOGConstants.getGameInstallPath(libraryItem.name)
-                val installDir = File(installPath)
-                return installDir.exists() && installDir.listFiles()?.isNotEmpty() == true
-            }
-
-            return false
-        } catch (e: Exception) {
-            Timber.w(e, "Error checking partial download status")
-            return false
-        }
-    }
-
     // Get the exe. There is a v1 and v2 depending on the age of the game.
     suspend fun getInstalledExe(context: Context, libraryItem: LibraryItem): String = withContext(Dispatchers.IO) {
         val gameId = libraryItem.gameId.toString()
@@ -719,95 +689,6 @@ class GOGManager @Inject constructor(
 
     fun getGameInstallPath(context: Context, gameId: String, gameTitle: String): String {
         return GOGConstants.getGameInstallPath(gameTitle)
-    }
-
-    suspend fun getGameDiskSize(context: Context, libraryItem: LibraryItem): String = withContext(Dispatchers.IO) {
-        val installPath = getGameInstallPath(context, libraryItem.appId, libraryItem.name)
-        val folderSize = StorageUtils.getFolderSize(installPath)
-        StorageUtils.formatBinarySize(folderSize)
-    }
-
-    suspend fun getDownloadSize(libraryItem: LibraryItem): String {
-        val gameId = libraryItem.gameId.toString()
-
-        // Return cached result if available
-        downloadSizeCache[gameId]?.let { return it }
-
-        val formattedSize = "Unknown"
-        downloadSizeCache[gameId] = formattedSize
-        return formattedSize
-    }
-
-
-    fun getCachedDownloadSize(gameId: String): String? {
-        return downloadSizeCache[gameId]
-    }
-
-
-    fun createLibraryItem(appId: String, gameId: String, context: Context): LibraryItem {
-        val gogGame = runBlocking { getGameById(gameId) }
-        return LibraryItem(
-            appId = appId,
-            name = gogGame?.title ?: "Unknown GOG Game",
-            iconHash = gogGame?.iconUrl ?: "",
-            gameSource = GameSource.GOG,
-        )
-    }
-
-    fun getStoreUrl(libraryItem: LibraryItem): Uri {
-        val gogGame = runBlocking { getGameById(libraryItem.gameId.toString()) }
-        val slug = gogGame?.slug ?: ""
-        return "https://www.gog.com/en/game/$slug".toUri()
-    }
-
-    fun convertToSteamApp(gogGame: GOGGame): SteamApp {
-        val releaseTimestamp = parseReleaseDate(gogGame.releaseDate)
-        val appId = gogGame.id.toIntOrNull() ?: gogGame.id.hashCode()
-
-        return SteamApp(
-            id = appId,
-            name = gogGame.title,
-            type = AppType.game,
-            osList = EnumSet.of(OS.windows),
-            releaseState = ReleaseState.released,
-            releaseDate = releaseTimestamp,
-            developer = gogGame.developer.takeIf { it.isNotEmpty() } ?: "Unknown Developer",
-            publisher = gogGame.publisher.takeIf { it.isNotEmpty() } ?: "Unknown Publisher",
-            controllerSupport = ControllerSupport.none,
-            logoHash = "",
-            iconHash = "",
-            clientIconHash = "",
-            installDir = gogGame.title.replace(Regex("[^a-zA-Z0-9 ]"), "").trim(),
-        )
-    }
-
-    private fun parseReleaseDate(releaseDate: String): Long {
-        if (releaseDate.isEmpty()) return 0L
-
-        val formats = arrayOf(
-            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US),
-            SimpleDateFormat("yyyy-MM-dd", Locale.US),
-            SimpleDateFormat("MMM dd, yyyy", Locale.US),
-        )
-
-        for (format in formats) {
-            try {
-                return format.parse(releaseDate)?.time ?: 0L
-            } catch (e: Exception) {
-                // Try next format
-            }
-        }
-
-        return 0L
-    }
-
-
-    fun isValidToDownload(library: LibraryItem): Boolean {
-        return true // GOG games are always downloadable if owned
-    }
-
-    suspend fun isUpdatePending(libraryItem: LibraryItem): Boolean {
-        return false // Not implemented yet
     }
 
 }

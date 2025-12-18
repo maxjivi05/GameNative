@@ -4,7 +4,6 @@ import requests
 import json
 from multiprocessing import cpu_count
 from gogdl.dl import dl_utils
-from gogdl import constants
 import gogdl.constants as constants
 
 

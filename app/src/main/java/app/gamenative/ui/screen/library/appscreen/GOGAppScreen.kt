@@ -33,6 +33,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
+import java.util.Locale
 
 /**
  * GOG-specific implementation of BaseAppScreen
@@ -541,7 +542,7 @@ class GOGAppScreen : BaseAppScreen() {
 
             val downloadSizeGB = (gogGame?.downloadSize ?: 0L) / 1_000_000_000.0
             val sizeText = if (downloadSizeGB > 0) {
-                String.format("%.2f GB", downloadSizeGB)
+                String.format(Locale.US, "%.2f GB", downloadSizeGB)
             } else {
                 "Unknown size"
             }

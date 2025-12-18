@@ -218,8 +218,13 @@ object GOGAuthManager {
             if (authFile.exists()) {
                 // Parse authentication result from file
                 val authData = parseFullCredentialsFromFile(authConfigPath)
-                Timber.i("GOG authentication successful for user")
-                return Result.success(authData)
+                if (authData != null) {
+                    Timber.i("GOG authentication successful for user")
+                    return Result.success(authData)
+                } else {
+                    Timber.e("Failed to parse auth file despite file existing")
+                    return Result.failure(Exception("Failed to parse authentication file"))
+                }
             }
 
             Timber.w("GOGDL returned success but no auth file created, using output data")
@@ -237,8 +242,13 @@ object GOGAuthManager {
             }
             try {
                 val authData = parseFullCredentialsFromFile(authConfigPath)
-                Timber.i("GOG authentication successful (fallback) for user")
-                return Result.success(authData)
+                if (authData != null) {
+                    Timber.i("GOG authentication successful (fallback) for user")
+                    return Result.success(authData)
+                } else {
+                    Timber.e("Failed to parse auth file (fallback path)")
+                    return Result.failure(Exception("Failed to parse authentication file"))
+                }
             } catch (ex: Exception) {
                 Timber.e(ex, "Failed to parse auth file")
                 return Result.failure(Exception("Failed to parse authentication result: ${ex.message}"))
@@ -278,45 +288,44 @@ object GOGAuthManager {
         }
     }
 
-    private fun parseFullCredentialsFromFile(authConfigPath: String): GOGCredentials {
+    private fun parseFullCredentialsFromFile(authConfigPath: String): GOGCredentials? {
         return try {
             val authFile = File(authConfigPath)
-            if (authFile.exists()) {
-                val authContent = authFile.readText()
-                val authJson = JSONObject(authContent)
-
-                // GOGDL stores credentials nested under client ID
-                val credentialsJson = if (authJson.has(GOGConstants.GOG_CLIENT_ID)) {
-                    authJson.getJSONObject(GOGConstants.GOG_CLIENT_ID)
-                } else {
-                    // Fallback: try to read from root level
-                    authJson
-                }
-
-                GOGCredentials(
-                    accessToken = credentialsJson.optString("access_token", ""),
-                    refreshToken = credentialsJson.optString("refresh_token", ""),
-                    userId = credentialsJson.optString("user_id", ""),
-                    username = credentialsJson.optString("username", "GOG User"),
-                )
-            } else {
-                // Return dummy credentials for successful auth
-                GOGCredentials(
-                    accessToken = "authenticated_${System.currentTimeMillis()}",
-                    refreshToken = "refresh_${System.currentTimeMillis()}",
-                    userId = "user_123",
-                    username = "GOG User",
-                )
+            if (!authFile.exists()) {
+                Timber.e("Auth file does not exist: $authConfigPath")
+                return null
             }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to parse auth result from file")
-            // Return dummy credentials as fallback
+
+            val authContent = authFile.readText()
+            val authJson = JSONObject(authContent)
+
+            // GOGDL stores credentials nested under client ID
+            val credentialsJson = if (authJson.has(GOGConstants.GOG_CLIENT_ID)) {
+                authJson.getJSONObject(GOGConstants.GOG_CLIENT_ID)
+            } else {
+                // Fallback: try to read from root level
+                authJson
+            }
+
+            val accessToken = credentialsJson.optString("access_token", "")
+            val refreshToken = credentialsJson.optString("refresh_token", "")
+            val userId = credentialsJson.optString("user_id", "")
+
+            // Validate required fields
+            if (accessToken.isEmpty() || userId.isEmpty()) {
+                Timber.e("Auth file missing required fields (access_token or user_id)")
+                return null
+            }
+
             GOGCredentials(
-                accessToken = "fallback_token",
-                refreshToken = "fallback_refresh",
-                userId = "fallback_user",
-                username = "GOG User",
+                accessToken = accessToken,
+                refreshToken = refreshToken,
+                userId = userId,
+                username = credentialsJson.optString("username", "GOG User"),
             )
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to parse auth result from file: ${e.message}")
+            null
         }
     }
     private fun createCredentialsFromJson(outputJson: JSONObject): GOGCredentials {

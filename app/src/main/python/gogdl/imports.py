@@ -55,19 +55,31 @@ def get_info(args, unknown_args):
         version_name = build_id
         if build_id and platform != "linux":
             # Get version name
-            builds_res = requests.get(
-                f"{constants.GOG_CONTENT_SYSTEM}/products/{game_id}/os/{platform}/builds?generation=2",
-                headers={
-                    "User-Agent": "GOGGalaxyCommunicationService/2.0.4.164 (Windows_32bit)"
-                },
-            )
-            builds = builds_res.json()
-            target_build = builds["items"][0]
-            for build in builds["items"]:
-                if build["build_id"] == build_id:
-                    target_build = build
-                    break
-            version_name = target_build["version_name"]
+            try:
+                builds_res = requests.get(
+                    f"{constants.GOG_CONTENT_SYSTEM}/products/{game_id}/os/{platform}/builds?generation=2",
+                    headers={
+                        "User-Agent": "GOGGalaxyCommunicationService/2.0.4.164 (Windows_32bit)"
+                    },
+                    timeout=30
+                )
+                builds_res.raise_for_status()
+                builds = builds_res.json()
+                target_build = builds["items"][0]
+                for build in builds["items"]:
+                    if build["build_id"] == build_id:
+                        target_build = build
+                        break
+                version_name = target_build["version_name"]
+            except requests.exceptions.Timeout:
+                logger.warning(f"Timeout fetching build info for game {game_id}, using build_id as version")
+                version_name = build_id
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Error fetching build info for game {game_id}: {e}, using build_id as version")
+                version_name = build_id
+            except (KeyError, IndexError, json.JSONDecodeError) as e:
+                logger.warning(f"Error parsing build info for game {game_id}: {e}, using build_id as version")
+                version_name = build_id
     if platform == "linux" and os.path.exists(os.path.join(path, "gameinfo")):
         # Linux version installed using installer
         gameinfo_file = open(os.path.join(path, "gameinfo"), "r")
