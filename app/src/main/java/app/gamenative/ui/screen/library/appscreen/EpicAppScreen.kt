@@ -129,35 +129,98 @@ class EpicAppScreen : BaseAppScreen() {
             app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener)
         }
 
+        // Fetch install size from manifest if not already available
+        LaunchedEffect(appId) {
+            val game = EpicService.getEpicGameOf(appId)
+            if (game != null && game.installSize == 0L && !game.isInstalled) {
+                Timber.tag("Epic").d("Install size not available for ${game.title}, fetching from manifest...")
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        val size = EpicService.fetchInstallSize(context, game.appName)
+                        if (size > 0L) {
+                            Timber.tag("Epic").i("Fetched install size for ${game.title}: $size bytes")
+                            // Update database with fetched size
+                            val updatedGame = game.copy(installSize = size, downloadSize = size)
+                            EpicService.updateEpicGame(updatedGame)
+                            // Trigger refresh to show updated size
+                            refreshTrigger++
+                        }
+                    } catch (e: Exception) {
+                        Timber.tag("Epic").e(e, "Failed to fetch install size for ${game.title}")
+                    }
+                }
+            }
+        }
+
         val epicGame = remember(appId, refreshTrigger) {
             val game = EpicService.getEpicGameOf(appId)
             if (game != null) {
-                Timber.tag(TAG).d("""
-                    |=== Epic Game Object ===
-                    |App ID: $appId
-                    |App Name: ${game.appName}
-                    |Title: ${game.title}
-                    |Developer: ${game.developer}
-                    |Publisher: ${game.publisher}
-                    |Release Date: ${game.releaseDate}
-                    |Description: ${game.description.take(100)}...
-                    |Art Cover URL: ${game.artCover}
-                    |Art Square URL: ${game.artSquare}
-                    |Install Path: ${game.installPath}
-                    |Is Installed: ${game.isInstalled}
-                    |Download Size: ${game.downloadSize} bytes (${game.downloadSize / 1_000_000_000.0} GB)
-                    |Install Size: ${game.installSize} bytes (${game.installSize / 1_000_000_000.0} GB)
-                    |Genres: ${game.genres.joinToString(", ")}
-                    |Tags: ${game.tags.joinToString(", ")}
-                    |Can Run Offline: ${game.canRunOffline}
-                    |Requires OT: ${game.requiresOT}
-                    |======================
+                Timber.tag("Epic").i("""
+                    |╔═══════════════════════════════════════════════════════════════════════════════
+                    |║ EPIC GAME DATABASE ENTRY
+                    |╠═══════════════════════════════════════════════════════════════════════════════
+                    |║ IDENTIFIERS
+                    |║   ID (Primary Key): ${game.id}
+                    |║   App Name: ${game.appName}
+                    |║   Namespace: ${game.namespace}
+                    |║   Title: ${game.title}
+                    |║
+                    |║ METADATA
+                    |║   Developer: ${game.developer}
+                    |║   Publisher: ${game.publisher}
+                    |║   Platform: ${game.platform}
+                    |║   Release Date: ${game.releaseDate}
+                    |║   Version: ${game.version}
+                    |║
+                    |║ INSTALLATION
+                    |║   Is Installed: ${game.isInstalled}
+                    |║   Install Path: ${game.installPath.ifEmpty { "N/A" }}
+                    |║   Executable: ${game.executable.ifEmpty { "N/A" }}
+                    |║   Download Size: ${game.downloadSize} bytes (${game.downloadSize / 1_000_000_000.0} GB)
+                    |║   Install Size: ${game.installSize} bytes (${game.installSize / 1_000_000_000.0} GB)
+                    |║
+                    |║ ARTWORK
+                    |║   Cover (Tall): ${game.artCover.ifEmpty { "N/A" }}
+                    |║   Square: ${game.artSquare.ifEmpty { "N/A" }}
+                    |║   Logo: ${game.artLogo.ifEmpty { "N/A" }}
+                    |║   Portrait (Wide): ${game.artPortrait.ifEmpty { "N/A" }}
+                    |║
+                    |║ FEATURES
+                    |║   Can Run Offline: ${game.canRunOffline}
+                    |║   Requires OT: ${game.requiresOT}
+                    |║   Cloud Save Enabled: ${game.cloudSaveEnabled}
+                    |║   Save Folder: ${game.saveFolder.ifEmpty { "N/A" }}
+                    |║   Is DLC: ${game.isDLC}
+                    |║   Base Game App Name: ${game.baseGameAppName.ifEmpty { "N/A" }}
+                    |║
+                    |║ THIRD PARTY
+                    |║   Third Party App: ${game.thirdPartyManagedApp.ifEmpty { "N/A" }}
+                    |║   Is EA Managed: ${game.isEAManaged}
+                    |║
+                    |║ DESCRIPTION
+                    |║   ${game.description.take(200)}${if (game.description.length > 200) "..." else ""}
+                    |║
+                    |║ GENRES (${game.genres.size})
+                    |║   ${game.genres.joinToString(", ").ifEmpty { "None" }}
+                    |║
+                    |║ TAGS (${game.tags.size})
+                    |║   ${game.tags.joinToString(", ").ifEmpty { "None" }}
+                    |║
+                    |║ PLAYTIME
+                    |║   Last Played: ${if (game.lastPlayed > 0) java.util.Date(game.lastPlayed) else "Never"}
+                    |║   Total Playtime: ${game.playTime} seconds (${game.playTime / 3600.0} hours)
+                    |╚═══════════════════════════════════════════════════════════════════════════════
                 """.trimMargin())
             } else {
-                Timber.tag(TAG).w("""
-                    |=== Epic Game Not Found ===
-                    |App ID: $appId
-                    |The game will use fallback data from the LibraryItem until Epic library is refreshed.
+                Timber.tag("Epic").w("""
+                    |╔═══════════════════════════════════════════════════════════════════════════════
+                    |║ EPIC GAME NOT FOUND IN DATABASE
+                    |╠═══════════════════════════════════════════════════════════════════════════════
+                    |║ App ID: $appId
+                    |║
+                    |║ The game will use fallback data from the LibraryItem until Epic library
+                    |║ is refreshed. Try opening Settings > Epic Games > Sync Library.
+                    |╚═══════════════════════════════════════════════════════════════════════════════
                 """.trimMargin())
             }
             game

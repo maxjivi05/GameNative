@@ -352,4 +352,89 @@ class EpicManager @Inject constructor(
             Result.failure(e)
         }
     }
+
+    /**
+     * Fetch install size for a game by downloading its manifest
+     * Manifest is small (~500KB-1MB) and contains all file metadata
+     * Returns size in bytes, or 0 if failed
+     */
+    suspend fun fetchInstallSize(context: Context, appName: String): Long = withContext(Dispatchers.IO) {
+        try {
+            Timber.tag("Epic").d("Fetching install size for $appName via manifest...")
+
+            val pythonCode = """
+import json
+from legendary.core import LegendaryCore
+
+try:
+    print(json.dumps({"status": "initializing"}))
+    core = LegendaryCore()
+
+    # Authenticate with stored credentials
+    print(json.dumps({"status": "authenticating"}))
+    if not core.login():
+        print(json.dumps({"error": "Authentication failed"}))
+    else:
+        print(json.dumps({"status": "getting_game_metadata"}))
+
+        game = core.get_game('$appName')
+        if not game:
+            print(json.dumps({"error": "Game not found"}))
+        else:
+            print(json.dumps({"status": "downloading_manifest", "game_title": game.app_title}))
+
+            # Download manifest (small file with metadata)
+            manifest_data, _ = core.get_cdn_manifest(game, platform='Windows')
+            print(json.dumps({"status": "parsing_manifest"}))
+
+            manifest = core.load_manifest(manifest_data)
+            print(json.dumps({"status": "calculating_size"}))
+
+            # Sum all file sizes from manifest
+            install_size = sum(fm.file_size for fm in manifest.file_manifest_list.elements)
+
+            print(json.dumps({"status": "complete", "install_size": install_size}))
+except Exception as e:
+    import traceback
+    print(json.dumps({"error": str(e), "traceback": traceback.format_exc()}))
+"""
+
+            Timber.tag("Epic").d("Executing Python code to fetch manifest...")
+            val result = EpicPythonBridge.executePythonCode(context, pythonCode)
+            Timber.tag("Epic").d("Python execution completed: success=${result.isSuccess}")
+
+            if (result.isSuccess) {
+                val output = result.getOrNull() ?: ""
+                Timber.tag("Epic").d("Python output: $output")
+
+                // Parse last line of output (final status)
+                val lines = output.trim().lines()
+                if (lines.isEmpty()) {
+                    Timber.e("Empty output from manifest fetch")
+                    return@withContext 0L
+                }
+
+                val lastLine = lines.last()
+                Timber.tag("Epic").d("Parsing final output line: $lastLine")
+                val json = JSONObject(lastLine.trim())
+
+                if (json.has("error")) {
+                    val error = json.getString("error")
+                    val traceback = json.optString("traceback", "No traceback")
+                    Timber.e("Failed to fetch install size: $error\nTraceback: $traceback")
+                    return@withContext 0L
+                }
+
+                val installSize = json.optLong("install_size", 0L)
+                Timber.tag("Epic").i("Fetched install size for $appName: $installSize bytes (${installSize / 1_000_000_000.0} GB)")
+                return@withContext installSize
+            } else {
+                Timber.e(result.exceptionOrNull(), "Failed to execute manifest fetch for $appName")
+                return@withContext 0L
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Exception fetching install size for $appName")
+            0L
+        }
+    }
 }
