@@ -30,8 +30,17 @@ object EpicPythonBridge {
             Timber.i("Initializing EpicPythonBridge with Chaquopy...")
 
             if (!Python.isStarted()) {
-                Python.start(AndroidPlatform(context))
+                try {
+                    Python.start(AndroidPlatform(context))
+                    Timber.d("Python started by EpicPythonBridge")
+                } catch (e: IllegalStateException) {
+                    // Python already started by another component (e.g., GOGPythonBridge)
+                    Timber.d("Python already started, using existing instance")
+                }
+            } else {
+                Timber.d("Python already started, using existing instance")
             }
+            
             python = Python.getInstance()
 
             isInitialized = true
