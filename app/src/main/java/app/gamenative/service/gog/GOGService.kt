@@ -255,14 +255,15 @@ class GOGService : Service() {
                         Timber.i("[Download] Completed successfully for game $gameId")
                         downloadInfo.setProgress(1.0f)
                         downloadInfo.setActive(false)
-                        // Remove from activeDownloads so UI knows download is complete
-                        instance.activeDownloads.remove(gameId)
                     }
                 } catch (e: Exception) {
                     Timber.e(e, "[Download] Exception for game $gameId")
                     downloadInfo.setProgress(-1.0f)
                     downloadInfo.setActive(false)
                 } finally {
+                    // Remove from activeDownloads for both success and failure
+                    // so UI knows download is complete and to prevent stale entries
+                    instance.activeDownloads.remove(gameId)
                     Timber.d("[Download] Finished for game $gameId, progress: ${downloadInfo.getProgress()}, active: ${downloadInfo.isActive()}")
                 }
             }
