@@ -42,9 +42,14 @@ class EpicService : Service() {
 
 
         fun start(context: Context) {
+            Timber.tag("Epic").i("[EpicService.start] Called. isRunning=$isRunning")
             if (!isRunning) {
+                Timber.tag("Epic").i("[EpicService.start] Starting foreground service...")
                 val intent = Intent(context, EpicService::class.java)
                 context.startForegroundService(intent)
+                Timber.tag("Epic").i("[EpicService.start] startForegroundService called")
+            } else {
+                Timber.tag("Epic").i("[EpicService.start] Service already running, skipping")
             }
         }
 
@@ -145,13 +150,14 @@ class EpicService : Service() {
 
 
         fun getEpicGameOf(appName: String): EpicGame? {
-            // TODO: Implement when EpicManager is ready
-            return null
+            return runBlocking {
+                getInstance()?.epicManager?.getGameByAppName(appName)
+            }
         }
 
 
         suspend fun updateEpicGame(game: EpicGame) {
-            // TODO: Implement when EpicManager is ready
+            getInstance()?.epicManager?.updateGame(game)
         }
 
 
@@ -194,8 +200,8 @@ class EpicService : Service() {
 
 
         suspend fun refreshLibrary(context: Context): Result<Int> {
-            // TODO: Implement when EpicManager is ready
-            return Result.failure(Exception("Not implemented"))
+            return getInstance()?.epicManager?.refreshLibrary(context)
+                ?: Result.failure(Exception("Service not available"))
         }
 
 
@@ -206,8 +212,13 @@ class EpicService : Service() {
 
 
         suspend fun refreshSingleGame(appName: String, context: Context): Result<EpicGame?> {
-            // TODO: Implement when EpicManager is ready
-            return Result.failure(Exception("Not implemented"))
+            // For now, just get from database
+            val game = getInstance()?.epicManager?.getGameByAppName(appName)
+            return if (game != null) {
+                Result.success(game)
+            } else {
+                Result.failure(Exception("Game not found: $appName"))
+            }
         }
 
 
@@ -219,9 +230,8 @@ class EpicService : Service() {
 
     private lateinit var notificationHelper: NotificationHelper
 
-    // TODO: Uncomment when EpicManager is implemented
-    // @Inject
-    // lateinit var epicManager: EpicManager
+    @Inject
+    lateinit var epicManager: EpicManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -231,35 +241,34 @@ class EpicService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        Timber.tag("Epic").i("[EpicService] Service created")
 
         // Initialize notification helper for foreground service
         notificationHelper = NotificationHelper(applicationContext)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Timber.d("EpicService.onStartCommand()")
+        Timber.tag("Epic").i("[EpicService] onStartCommand() called")
 
         // Start as foreground service
         val notification = notificationHelper.createForegroundNotification("Epic Games Service running...")
         startForeground(3, notification) // Use different ID than Steam (1) and GOG (2)
+        Timber.tag("Epic").i("[EpicService] Started as foreground service")
 
         // Start background library sync automatically when service starts
         backgroundSyncJob = scope.launch {
             try {
                 setSyncInProgress(true)
-                Timber.d("[EpicService]: Starting background library sync")
+                Timber.tag("Epic").i("[EpicService] Starting background library sync...")
 
-                // TODO: Implement when EpicManager is ready
-                // val syncResult = epicManager.startBackgroundSync(applicationContext)
-                // if (syncResult.isFailure) {
-                //     Timber.w("[EpicService]: Failed to start background sync: ${syncResult.exceptionOrNull()?.message}")
-                // } else {
-                //     Timber.i("[EpicService]: Background library sync started successfully")
-                // }
-
-                Timber.i("[EpicService]: Background sync stub - will implement when EpicManager is ready")
+                val syncResult = epicManager.startBackgroundSync(applicationContext)
+                if (syncResult.isFailure) {
+                    Timber.tag("Epic").w("[EpicService] Failed to start background sync: ${syncResult.exceptionOrNull()?.message}")
+                } else {
+                    Timber.tag("Epic").i("[EpicService] Background library sync completed successfully")
+                }
             } catch (e: Exception) {
-                Timber.e(e, "[EpicService]: Exception starting background sync")
+                Timber.tag("Epic").e(e, "[EpicService] Exception starting background sync")
             } finally {
                 setSyncInProgress(false)
             }
@@ -270,6 +279,7 @@ class EpicService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        Timber.tag("Epic").i("[EpicService] Service destroyed")
 
         // Cancel sync operations
         backgroundSyncJob?.cancel()
