@@ -475,18 +475,25 @@ object ContainerUtils {
     }
 
     fun getContainerId(appId: String): String {
-        return appId
+        // For Epic games (no prefix, not numeric), prefix with EPIC_
+        return if (isEpicId(appId)) {
+            "EPIC_$appId"
+        } else {
+            appId
+        }
     }
 
     fun hasContainer(context: Context, appId: String): Boolean {
         val containerManager = ContainerManager(context)
-        return containerManager.hasContainer(appId)
+        val containerId = getContainerId(appId)
+        return containerManager.hasContainer(containerId)
     }
 
     fun getContainer(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
-        return if (containerManager.hasContainer(appId)) {
-            containerManager.getContainerById(appId)
+        val containerId = getContainerId(appId)
+        return if (containerManager.hasContainer(containerId)) {
+            containerManager.getContainerById(containerId)
         } else {
             throw Exception("Container does not exist for game $appId")
         }
@@ -959,15 +966,21 @@ object ContainerUtils {
      * - EPIC_1dea8a6ddb544842a58e4b5c8675ff58 -> hashCode() of UUID
      * - CUSTOM_GAME_571969840 -> 571969840
      * - STEAM_123456(1) -> 123456
+     * - Unprefixed Epic IDs like "Daisy" or "Puffin" -> hashCode()
      */
     fun extractGameIdFromContainerId(containerId: String): Int {
         // Epic games use string catalog IDs which can't be converted to int
-        // For Epic, return a hash code of the UUID (after removing prefix)
+        // For Epic, return a hash code of the UUID (after removing prefix if present)
         val source = extractGameSourceFromContainerId(containerId)
         if (source == GameSource.EPIC) {
             // Extract the UUID after EPIC_ prefix and return its hash code
             val uuid = containerId.removePrefix("EPIC_")
             return uuid.hashCode()
+        }
+
+        // Check if this looks like an unprefixed Epic ID (not numeric, no known prefix)
+        if (isEpicId(containerId)) {
+            return containerId.hashCode()
         }
 
         // Remove duplicate suffix like (1), (2) if present
