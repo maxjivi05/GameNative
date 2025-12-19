@@ -499,15 +499,15 @@ object ContainerUtils {
         containerManager: ContainerManager,
         customConfig: ContainerData? = null,
     ): Container {
-        // Determine game source
-        val gameSource = extractGameSourceFromContainerId(appId)
+        // Determine game source from the container ID (which has proper prefixes)
+        val gameSource = extractGameSourceFromContainerId(containerId)
 
         // Set up container drives to include app
         val defaultDrives = PrefManager.drives
         val drives = when (gameSource) {
             GameSource.STEAM -> {
                 // For Steam games, set up the app directory path
-                val gameId = extractGameIdFromContainerId(appId)
+                val gameId = extractGameIdFromContainerId(containerId)
                 val appDirPath = SteamService.getAppDirPath(gameId)
                 val drive: Char = Container.getNextAvailableDriveLetter(defaultDrives)
                 "$defaultDrives$drive:$appDirPath"
@@ -530,7 +530,7 @@ object ContainerUtils {
             }
             GameSource.GOG -> {
                 // For GOG games, map the specific game directory to A: drive
-                val gameId = extractGameIdFromContainerId(appId)
+                val gameId = extractGameIdFromContainerId(containerId)
                 val game = runBlocking { GOGService.getGOGGameOf(gameId.toString()) }
                 if (game != null) {
                     val gameInstallPath = GOGConstants.getGameInstallPath(game.title)
@@ -615,7 +615,7 @@ object ContainerUtils {
         var bestConfigMap: Map<String, Any?>? = null
         if (gameSource == GameSource.STEAM && customConfig == null) {
             try {
-                val gameId = extractGameIdFromContainerId(appId)
+                val gameId = extractGameIdFromContainerId(containerId)
                 val appInfo = SteamService.getAppInfoOf(gameId)
                 if (appInfo != null) {
                     val gameName = appInfo.name
@@ -776,13 +776,32 @@ object ContainerUtils {
         return container
     }
 
+    /**
+     * Checks if an appId looks like an Epic game ID
+     * Epic IDs can be UUIDs (32 hex chars) or simple strings like "Quail"
+     * They don't have STEAM_, CUSTOM_GAME_ prefix and aren't plain numeric (GOG)
+     */
+    private fun isEpicId(id: String): Boolean {
+        return !id.startsWith("STEAM_") &&
+               !id.startsWith("CUSTOM_GAME_") &&
+               !id.startsWith("EPIC_") &&
+               id.toIntOrNull() == null
+    }
+
     fun getOrCreateContainer(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
 
-        val container = if (containerManager.hasContainer(appId)) {
-            containerManager.getContainerById(appId)
+        // For Epic games (no prefix, not numeric), prefix the container ID with EPIC_ for consistency
+        val containerId = if (isEpicId(appId)) {
+            "EPIC_$appId"
         } else {
-            createNewContainer(context, appId, appId, containerManager)
+            appId
+        }
+
+        val container = if (containerManager.hasContainer(containerId)) {
+            containerManager.getContainerById(containerId)
+        } else {
+            createNewContainer(context, appId, containerId, containerManager)
         }
 
         // Delete any existing FEXCore config files (we use environment variables only)
@@ -825,7 +844,7 @@ object ContainerUtils {
             }
         } else if (gameSource == GameSource.GOG) {
             // Ensure GOG games have the specific game directory mapped
-            val gameId = extractGameIdFromContainerId(appId)
+            val gameId = extractGameIdFromContainerId(containerId)
             val game = runBlocking { GOGService.getGOGGameOf(gameId.toString()) }
             if (game != null) {
                 val gameInstallPath = GOGConstants.getGameInstallPath(game.title)
@@ -876,8 +895,15 @@ object ContainerUtils {
     fun getOrCreateContainerWithOverride(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
 
-        return if (containerManager.hasContainer(appId)) {
-            val container = containerManager.getContainerById(appId)
+        // For Epic games (no prefix, not numeric), prefix the container ID with EPIC_ for consistency
+        val containerId = if (isEpicId(appId)) {
+            "EPIC_$appId"
+        } else {
+            appId
+        }
+
+        return if (containerManager.hasContainer(containerId)) {
+            val container = containerManager.getContainerById(containerId)
 
             // Apply temporary override if present (without saving to disk)
             if (IntentLaunchManager.hasTemporaryOverride(appId)) {
@@ -907,7 +933,7 @@ object ContainerUtils {
                 null
             }
 
-            createNewContainer(context, appId, appId, containerManager, overrideConfig)
+            createNewContainer(context, appId, containerId, containerManager, overrideConfig)
         }
     }
 
@@ -930,10 +956,20 @@ object ContainerUtils {
      * Extracts the game ID from a container ID string
      * Handles formats like:
      * - STEAM_123456 -> 123456
+     * - EPIC_1dea8a6ddb544842a58e4b5c8675ff58 -> hashCode() of UUID
      * - CUSTOM_GAME_571969840 -> 571969840
      * - STEAM_123456(1) -> 123456
      */
     fun extractGameIdFromContainerId(containerId: String): Int {
+        // Epic games use string catalog IDs which can't be converted to int
+        // For Epic, return a hash code of the UUID (after removing prefix)
+        val source = extractGameSourceFromContainerId(containerId)
+        if (source == GameSource.EPIC) {
+            // Extract the UUID after EPIC_ prefix and return its hash code
+            val uuid = containerId.removePrefix("EPIC_")
+            return uuid.hashCode()
+        }
+
         // Remove duplicate suffix like (1), (2) if present
         val idWithoutSuffix = if (containerId.contains("(")) {
             containerId.substringBefore("(")
@@ -960,6 +996,7 @@ object ContainerUtils {
     fun extractGameSourceFromContainerId(containerId: String): GameSource {
         return when {
             containerId.startsWith("STEAM_") -> GameSource.STEAM
+            containerId.startsWith("EPIC_") -> GameSource.EPIC
             containerId.startsWith("CUSTOM_GAME_") -> GameSource.CUSTOM_GAME
             // GOG games use plain numeric IDs - check if it's just a number
             containerId.toIntOrNull() != null -> GameSource.GOG

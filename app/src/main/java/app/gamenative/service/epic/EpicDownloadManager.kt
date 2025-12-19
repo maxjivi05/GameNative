@@ -50,6 +50,7 @@ class EpicDownloadManager @Inject constructor() {
         private const val CHUNK_BUFFER_SIZE = 1024 * 1024 // 1MB buffer for decompression
     }
 
+    // TODO: Update this so that it can give a proper download tracker for the front-end. Currently it's not tracking correctly.
     /**
      * Download and install an Epic game
      *
@@ -148,6 +149,7 @@ class EpicDownloadManager @Inject constructor() {
 
             downloadInfo.updateStatusMessage("Complete")
             downloadInfo.setProgress(1.0f)
+            downloadInfo.emitProgressChange() // Force final progress update
 
             Result.success(Unit)
         } catch (e: Exception) {

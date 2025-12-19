@@ -605,9 +605,46 @@ class EpicAppScreen : BaseAppScreen() {
             if (event.appId == libraryItem.gameId) {
                 Timber.tag(TAG).d("[OBSERVE] Download status changed for ${libraryItem.appId}, isDownloading=${event.isDownloading}")
                 if (event.isDownloading) {
-                    Timber.tag(TAG).d("[OBSERVE] Download started, will observe progress")
+                    // Download started - attach progress listener
+                    val epicGame = EpicService.getEpicGameOf(libraryItem.appId)
+                    val appName = epicGame?.appName
+                    if (appName != null) {
+                        val downloadInfo = EpicService.getDownloadInfo(appName)
+                        if (downloadInfo != null) {
+                            // Remove previous listener if exists
+                            currentProgressListener?.let { listener ->
+                                downloadInfo.removeProgressListener(listener)
+                            }
+                            // Add new listener and track it
+                            val progressListener: (Float) -> Unit = { progress ->
+                                onProgressChanged(progress)
+                            }
+                            downloadInfo.addProgressListener(progressListener)
+                            currentProgressListener = progressListener
+
+                            // Add cleanup for this listener
+                            disposables += {
+                                currentProgressListener?.let { listener ->
+                                    downloadInfo.removeProgressListener(listener)
+                                    currentProgressListener = null
+                                }
+                            }
+                            Timber.tag(TAG).d("[OBSERVE] Progress listener attached for $appName")
+                        }
+                    }
                 } else {
-                    Timber.tag(TAG).d("[OBSERVE] Download stopped/completed")
+                    // Download stopped/completed - clean up listener
+                    currentProgressListener?.let { listener ->
+                        val epicGame = EpicService.getEpicGameOf(libraryItem.appId)
+                        val appName = epicGame?.appName
+                        if (appName != null) {
+                            val downloadInfo = EpicService.getDownloadInfo(appName)
+                            downloadInfo?.removeProgressListener(listener)
+                        }
+                        currentProgressListener = null
+                    }
+                    onHasPartialDownloadChanged?.invoke(false)
+                    Timber.tag(TAG).d("[OBSERVE] Download stopped/completed, listener cleaned up")
                 }
                 onStateChanged()
             }

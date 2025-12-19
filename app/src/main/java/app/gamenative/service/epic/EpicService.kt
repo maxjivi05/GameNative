@@ -11,6 +11,7 @@ import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
 import timber.log.Timber
@@ -184,7 +185,37 @@ class EpicService : Service() {
 
 
         suspend fun getInstalledExe(context: Context, libraryItem: LibraryItem): String {
-            // TODO: Implement when EpicManager is ready
+            val game = getInstance()?.epicManager?.getGameByAppName(libraryItem.appId)
+            if (game == null || !game.isInstalled || game.installPath.isEmpty()) {
+                Timber.tag("Epic").e("Game not installed: ${libraryItem.appId}")
+                return ""
+            }
+
+            // For now, return the install path - actual executable detection would require
+            // parsing the game's launch manifest or config files
+            // Most Epic games have a .exe in the root or Binaries folder
+            val installDir = File(game.installPath)
+            if (!installDir.exists()) {
+                Timber.tag("Epic").e("Install directory does not exist: ${game.installPath}")
+                return ""
+            }
+
+            // Try to find the main executable
+            // Common patterns: Game.exe, GameName.exe, or in Binaries/Win64/
+            val exeFiles = installDir.walk()
+                .filter { it.extension.equals("exe", ignoreCase = true) }
+                .filter { !it.name.contains("UnityCrashHandler", ignoreCase = true) }
+                .filter { !it.name.contains("UnrealCEFSubProcess", ignoreCase = true) }
+                .sortedBy { it.absolutePath.length } // Prefer shorter paths (usually main exe)
+                .toList()
+
+            val mainExe = exeFiles.firstOrNull()
+            if (mainExe != null) {
+                Timber.tag("Epic").i("Found executable: ${mainExe.absolutePath}")
+                return mainExe.absolutePath
+            }
+
+            Timber.tag("Epic").w("No executable found in ${game.installPath}")
             return ""
         }
 
@@ -198,8 +229,33 @@ class EpicService : Service() {
             envVars: com.winlator.core.envvars.EnvVars,
             guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent
         ): String {
-            // TODO: Implement when EpicManager is ready
-            return "\"explorer.exe\""
+            val game = runBlocking {
+                getInstance()?.epicManager?.getGameByAppName(libraryItem.appId)
+            }
+
+            if (game == null || !game.isInstalled || game.installPath.isEmpty()) {
+                Timber.tag("Epic").e("Cannot launch: game not installed")
+                return "\"explorer.exe\""
+            }
+
+            // Get the executable path
+            val exePath = runBlocking {
+                getInstalledExe(context, libraryItem)
+            }
+
+            if (exePath.isEmpty()) {
+                Timber.tag("Epic").e("Cannot launch: executable not found")
+                return "\"explorer.exe\""
+            }
+
+            // Convert Windows path to Wine format
+            val winePath = exePath.replace(game.installPath, "Z:${game.installPath}")
+                .replace("/", "\\")
+
+            Timber.tag("Epic").i("Launching Epic game with exe: $winePath")
+
+            // Build Wine command with proper escaping
+            return "\"$winePath\""
         }
 
 
@@ -240,6 +296,12 @@ class EpicService : Service() {
 
                     Timber.tag("Epic").i("Starting download for ${game.title}")
 
+                    // Emit event for UI to start tracking progress
+                    val gameId = game.id.toIntOrNull() ?: 0
+                    app.gamenative.PluviaApp.events.emitJava(
+                        app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true)
+                    )
+
                     // Download the game
                     val result = instance.epicDownloadManager.downloadGame(
                         context = context,
@@ -257,12 +319,36 @@ class EpicService : Service() {
                             installPath = installPath
                         )
                         instance.epicManager.updateGame(updatedGame)
+
+                        // Emit events for UI update
+                        val gameId = game.id.toIntOrNull() ?: 0
+                        app.gamenative.PluviaApp.events.emitJava(
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                        )
+                        app.gamenative.PluviaApp.events.emitJava(
+                            app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(gameId)
+                        )
                     } else {
                         Timber.tag("Epic").e("Download failed: ${result.exceptionOrNull()?.message}")
+
+                        // Emit event for UI update on failure
+                        val gameId = game.id.toIntOrNull() ?: 0
+                        app.gamenative.PluviaApp.events.emitJava(
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                        )
                     }
 
                 } catch (e: Exception) {
                     Timber.tag("Epic").e(e, "Download exception for $appName")
+
+                    // Emit event for UI update on exception
+                    val game = instance.epicManager.getGameByAppName(appName)
+                    if (game != null) {
+                        val gameId = game.id.toIntOrNull() ?: 0
+                        app.gamenative.PluviaApp.events.emitJava(
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                        )
+                    }
                 } finally {
                     instance.activeDownloads.remove(appName)
                 }
