@@ -152,8 +152,24 @@ object EpicPythonBridge {
 
                     // Execute the main function
                     Timber.d("Calling legendary.cli.main()...")
-                    legendaryCli.callAttr("main")
-                    Timber.d("legendary.cli.main() completed")
+                    try {
+                        legendaryCli.callAttr("main")
+                        Timber.d("legendary.cli.main() completed")
+                    } catch (e: Exception) {
+                        // Legendary CLI calls sys.exit() on completion, which raises SystemExit
+                        // SystemExit with code 0 is success, anything else is an error
+                        if (e.javaClass.simpleName == "PyException") {
+                            val exceptionStr = e.message ?: ""
+                            if (exceptionStr.contains("SystemExit") && exceptionStr.contains(": 0")) {
+                                Timber.d("Legendary completed successfully (SystemExit: 0)")
+                            } else {
+                                Timber.e(e, "Legendary failed with exception: $exceptionStr")
+                                throw e
+                            }
+                        } else {
+                            throw e
+                        }
+                    }
 
                     // Get the captured output
                     val output = stdoutCapture.callAttr("getvalue").toString()
