@@ -205,6 +205,8 @@ chaquopy {
         pip {
             // Install GOGDL dependencies
             install("requests")
+            // Install Legendary for Epic Games Store integration
+            install("legendary-gl")
         }
     }
     sourceSets {
