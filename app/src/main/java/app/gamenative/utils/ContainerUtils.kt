@@ -545,6 +545,11 @@ object ContainerUtils {
                     defaultDrives
                 }
             }
+            GameSource.EPIC -> {
+                // For Epic games, use default drives for now
+                // TODO: Map Epic game installation directory when Epic integration is complete
+                defaultDrives
+            }
         }
         Timber.d("Prepared container drives: $drives")
 

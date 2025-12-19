@@ -28,10 +28,10 @@ interface EpicGameDao {
     @Delete
     suspend fun delete(game: EpicGame)
 
-    @Query("DELETE FROM epic_games WHERE app_id = :appId")
+    @Query("DELETE FROM epic_games WHERE id = :appId")
     suspend fun deleteById(appId: String)
 
-    @Query("SELECT * FROM epic_games WHERE app_id = :appId")
+    @Query("SELECT * FROM epic_games WHERE id = :appId")
     suspend fun getById(appId: String): EpicGame?
 
     @Query("SELECT * FROM epic_games WHERE app_name = :appName")
@@ -68,7 +68,7 @@ interface EpicGameDao {
     @Transaction
     suspend fun upsertPreservingInstallStatus(games: List<EpicGame>) {
         games.forEach { newGame ->
-            val existingGame = getById(newGame.appId)
+            val existingGame = getById(newGame.id)
             if (existingGame != null) {
                 // Preserve installation status, path, and size from existing game
                 val gameToInsert = newGame.copy(

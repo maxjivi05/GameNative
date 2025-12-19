@@ -48,7 +48,7 @@ import kotlin.math.min
 class LibraryViewModel @Inject constructor(
     private val steamAppDao: SteamAppDao,
     private val gogGameDao: GOGGameDao,
-    private val epicGameDao: EpicGameDao
+    private val epicGameDao: EpicGameDao,
     @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
@@ -401,7 +401,7 @@ class LibraryViewModel @Inject constructor(
                 LibraryEntry(
                     item = LibraryItem(
                         index = 0,
-                        appId = game.appId,  // Use Epic app ID
+                        appId = game.id,  // Use Epic app ID
                         name = game.title,
                         iconHash = game.iconUrl,  // Epic games use full URLs in iconUrl property
                         isShared = false,

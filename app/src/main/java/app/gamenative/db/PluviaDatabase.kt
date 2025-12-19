@@ -14,6 +14,7 @@ import app.gamenative.data.SteamLicense
 import app.gamenative.data.CachedLicense
 import app.gamenative.data.EncryptedAppTicket
 import app.gamenative.data.GOGGame
+import app.gamenative.data.EpicGame
 import app.gamenative.db.converters.AppConverter
 import app.gamenative.db.converters.ByteArrayConverter
 import app.gamenative.db.converters.FriendConverter

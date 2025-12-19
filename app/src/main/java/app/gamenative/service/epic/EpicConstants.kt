@@ -38,7 +38,7 @@ object EpicConstants {
     const val EPIC_CATALOG_API_URL = "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api"
 
     // User Agent for API requests (Legendary CLI)
-    const val EPIC_USER_AGENT = "Legendary/${getBuildVersion()} (GameNative)"
+    val EPIC_USER_AGENT = "Legendary/${getBuildVersion()} (GameNative)"
 
     // Legendary CLI configuration
     const val LEGENDARY_CONFIG_DIR = "legendary"

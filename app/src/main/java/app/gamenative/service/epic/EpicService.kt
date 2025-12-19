@@ -60,34 +60,42 @@ class EpicService : Service() {
 
         // ==========================================================================
         // AUTHENTICATION
+        // TODO: Uncomment when EpicAuthManager is implemented
         // ==========================================================================
 
         suspend fun authenticateWithCode(context: Context, authorizationCode: String): Result<EpicCredentials> {
-            return EpicAuthManager.authenticateWithCode(context, authorizationCode)
+            // return EpicAuthManager.authenticateWithCode(context, authorizationCode)
+            return Result.failure(Exception("Not implemented"))
         }
 
         fun hasStoredCredentials(context: Context): Boolean {
-            return EpicAuthManager.hasStoredCredentials(context)
+            // return EpicAuthManager.hasStoredCredentials(context)
+            return false
         }
 
         suspend fun getStoredCredentials(context: Context): Result<EpicCredentials> {
-            return EpicAuthManager.getStoredCredentials(context)
+            // return EpicAuthManager.getStoredCredentials(context)
+            return Result.failure(Exception("Not implemented"))
         }
 
         suspend fun validateCredentials(context: Context): Result<Boolean> {
-            return EpicAuthManager.validateCredentials(context)
+            // return EpicAuthManager.validateCredentials(context)
+            return Result.failure(Exception("Not implemented"))
         }
 
         fun clearStoredCredentials(context: Context): Boolean {
-            return EpicAuthManager.clearStoredCredentials(context)
+            // return EpicAuthManager.clearStoredCredentials(context)
+            return false
         }
 
         suspend fun refreshAccessToken(context: Context): Result<EpicCredentials> {
-            return EpicAuthManager.refreshAccessToken(context)
+            // return EpicAuthManager.refreshAccessToken(context)
+            return Result.failure(Exception("Not implemented"))
         }
 
         suspend fun getUserInfo(context: Context): Result<Pair<String, String>> {
-            return EpicAuthManager.getUserInfo(context)
+            // return EpicAuthManager.getUserInfo(context)
+            return Result.failure(Exception("Not implemented"))
         }
 
         // ==========================================================================
@@ -227,8 +235,9 @@ class EpicService : Service() {
 
     private lateinit var notificationHelper: NotificationHelper
 
-    @Inject
-    lateinit var epicManager: EpicManager
+    // TODO: Uncomment when EpicManager is implemented
+    // @Inject
+    // lateinit var epicManager: EpicManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 

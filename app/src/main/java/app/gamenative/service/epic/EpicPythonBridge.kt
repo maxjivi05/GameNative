@@ -6,6 +6,7 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import kotlinx.coroutines.*
 import timber.log.Timber
+import kotlin.coroutines.coroutineContext
 
 /**
  * Epic/Legendary Python Bridge
@@ -224,7 +225,7 @@ object EpicPythonBridge {
         try {
             var lastOutputLength = 0
 
-            while (isActive && downloadInfo.getProgress() < 1.0f) {
+            while (coroutineContext.isActive && downloadInfo.getProgress() < 1.0f) {
                 delay(500) // Poll every 500ms
 
                 try {
