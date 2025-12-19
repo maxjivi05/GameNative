@@ -59,43 +59,27 @@ class EpicService : Service() {
         }
 
         // ==========================================================================
-        // AUTHENTICATION
-        // TODO: Uncomment when EpicAuthManager is implemented
+        // AUTHENTICATION - Delegate to EpicAuthManager
         // ==========================================================================
 
         suspend fun authenticateWithCode(context: Context, authorizationCode: String): Result<EpicCredentials> {
-            // return EpicAuthManager.authenticateWithCode(context, authorizationCode)
-            return Result.failure(Exception("Not implemented"))
+            return EpicAuthManager.authenticateWithCode(context, authorizationCode)
         }
 
         fun hasStoredCredentials(context: Context): Boolean {
-            // return EpicAuthManager.hasStoredCredentials(context)
-            return false
+            return EpicAuthManager.hasStoredCredentials(context)
         }
 
         suspend fun getStoredCredentials(context: Context): Result<EpicCredentials> {
-            // return EpicAuthManager.getStoredCredentials(context)
-            return Result.failure(Exception("Not implemented"))
+            return EpicAuthManager.getStoredCredentials(context)
         }
 
         suspend fun validateCredentials(context: Context): Result<Boolean> {
-            // return EpicAuthManager.validateCredentials(context)
-            return Result.failure(Exception("Not implemented"))
+            return EpicAuthManager.validateCredentials(context)
         }
 
-        fun clearStoredCredentials(context: Context): Boolean {
-            // return EpicAuthManager.clearStoredCredentials(context)
-            return false
-        }
-
-        suspend fun refreshAccessToken(context: Context): Result<EpicCredentials> {
-            // return EpicAuthManager.refreshAccessToken(context)
-            return Result.failure(Exception("Not implemented"))
-        }
-
-        suspend fun getUserInfo(context: Context): Result<Pair<String, String>> {
-            // return EpicAuthManager.getUserInfo(context)
-            return Result.failure(Exception("Not implemented"))
+        suspend fun logout(context: Context): Result<Unit> {
+            return EpicAuthManager.logout(context)
         }
 
         // ==========================================================================

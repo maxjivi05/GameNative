@@ -40,7 +40,7 @@ object EpicPythonBridge {
             } else {
                 Timber.d("Python already started, using existing instance")
             }
-            
+
             python = Python.getInstance()
 
             isInitialized = true
@@ -53,6 +53,53 @@ object EpicPythonBridge {
     }
 
     fun isReady(): Boolean = isInitialized && Python.isStarted()
+
+    /**
+     * Execute Python code directly (for complex operations like authentication)
+     *
+     * @param context Android context
+     * @param pythonCode Python code to execute
+     * @return Result containing stdout output or error
+     */
+    suspend fun executePythonCode(context: Context, pythonCode: String): Result<String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                initialize(context)
+
+                if (!Python.isStarted()) {
+                    return@withContext Result.failure(Exception("Python environment not initialized"))
+                }
+
+                val python = Python.getInstance()
+                val sys = python.getModule("sys")
+                val io = python.getModule("io")
+
+                // Capture stdout
+                val stdoutCapture = io.callAttr("StringIO")
+                val originalStdout = sys.get("stdout")
+                sys.put("stdout", stdoutCapture)
+
+                try {
+                    // Execute the Python code
+                    python.getModule("__main__").callAttr("exec", pythonCode)
+
+                    // Get captured output
+                    val output = stdoutCapture.callAttr("getvalue").toString()
+
+                    // Restore stdout
+                    sys.put("stdout", originalStdout)
+
+                    Result.success(output)
+                } catch (e: Exception) {
+                    sys.put("stdout", originalStdout)
+                    throw e
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to execute Python code")
+                Result.failure(e)
+            }
+        }
+    }
 
     /**
      * Execute Legendary CLI command
@@ -367,6 +414,24 @@ object EpicPythonBridge {
             Timber.d("Progress estimation cancelled")
         } catch (e: Exception) {
             Timber.w(e, "Error in progress estimation")
+        }
+    }
+
+    /**
+     * Test legendary import - verifies legendary-android can be imported without multiprocessing errors
+     * @return Version string if successful, error message if failed
+     */
+    fun testLegendaryImport(context: Context): String {
+        initialize(context)
+
+        return try {
+            val legendary = python?.getModule("legendary") ?: return "ERROR: Python not initialized"
+            val version = legendary.get("__version__").toString()
+            Timber.i("legendary-android import successful, version: $version")
+            "OK: legendary v$version"
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to import legendary")
+            "ERROR: ${e.message}"
         }
     }
 }
