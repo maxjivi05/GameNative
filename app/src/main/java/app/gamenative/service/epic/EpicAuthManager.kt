@@ -19,19 +19,42 @@ import java.io.File
 object EpicAuthManager {
 
     /**
-     * Get path to legendary's user.json auth file
-     * This is where legendary stores Epic credentials
+     * Get path to legendary's config directory
+     * Legendary stores user.json at: {configDir}/.config/legendary/user.json
      */
     fun getAuthConfigPath(context: Context): String {
-        return "${context.filesDir}/legendary_user.json"
+        return context.filesDir.absolutePath
+    }
+
+    /**
+     * Get the actual user.json file path where legendary stores credentials
+     */
+    private fun getUserJsonPath(context: Context): String {
+        return "${context.filesDir}/.config/legendary/user.json"
     }
 
     /**
      * Check if user has stored Epic credentials
      */
     fun hasStoredCredentials(context: Context): Boolean {
-        val authFile = File(getAuthConfigPath(context))
-        return authFile.exists()
+        val userJsonFile = File(getUserJsonPath(context))
+        return userJsonFile.exists()
+    }
+
+    /**
+     * Extract authorization code from various input formats:
+     * - Full URL: https://www.epicgames.com/id/api/redirect?code=abc123
+     * - Just code: abc123
+     */
+    private fun extractCodeFromInput(input: String): String {
+        val trimmed = input.trim()
+        // Check if it's a URL with code parameter
+        if (trimmed.startsWith("http")) {
+            val codeMatch = Regex("[?&]code=([^&]+)").find(trimmed)
+            return codeMatch?.groupValues?.get(1) ?: ""
+        }
+        // Otherwise assume it's already the code
+        return trimmed
     }
 
     /**
@@ -65,31 +88,18 @@ object EpicAuthManager {
             // Use legendary Python module to authenticate
             Timber.d("Authenticating via legendary.core.auth_code()")
 
-            // Call legendary auth via Python
+            // Call legendary auth via Python - just return success/failure
             val pythonCode = """
 import json
-import sys
 from legendary.core import LegendaryCore
 
 try:
-    core = LegendaryCore(override_config='$authConfigPath')
+    core = LegendaryCore()
     success = core.auth_code('$actualCode')
-
-    if success:
-        # Get stored credentials from legendary
-        userdata = core.lgd.get_userdata()
-        print(json.dumps({
-            "success": True,
-            "access_token": userdata.get("access_token", ""),
-            "account_id": userdata.get("account_id", ""),
-            "display_name": userdata.get("displayName", "Epic User"),
-            "expires_at": userdata.get("expires_at", "")
-        }))
-    else:
-        print(json.dumps({"error": True, "message": "Authentication failed"}))
+    print(json.dumps({"success": success}))
 except Exception as e:
     print(json.dumps({"error": True, "message": str(e)}))
-            """.trimIndent()
+"""
 
             val result = EpicPythonBridge.executePythonCode(context, pythonCode)
 
@@ -97,8 +107,30 @@ except Exception as e:
 
             if (result.isSuccess) {
                 val output = result.getOrNull() ?: ""
-                Timber.i("Legendary command completed, parsing authentication result...")
-                return parseAuthenticationResult(authConfigPath, output)
+                Timber.d("Legendary auth output: $output")
+
+                val json = JSONObject(output.trim())
+
+                if (json.has("error") && json.getBoolean("error")) {
+                    val errorMsg = json.optString("message", "Authentication failed")
+                    Timber.e("Epic authentication failed: $errorMsg")
+                    return Result.failure(Exception(errorMsg))
+                }
+
+                val success = json.optBoolean("success", false)
+                if (success) {
+                    Timber.i("Legendary authentication successful, reading credentials from file...")
+                    // Read credentials from the file legendary created
+                    val userJsonPath = getUserJsonPath(context)
+                    val credentials = parseFullCredentialsFromFile(userJsonPath)
+                    if (credentials != null) {
+                        return Result.success(credentials)
+                    } else {
+                        return Result.failure(Exception("Authentication succeeded but failed to read credentials"))
+                    }
+                } else {
+                    return Result.failure(Exception("Authentication failed"))
+                }
             } else {
                 val error = result.exceptionOrNull()
                 val errorMsg = error?.message ?: "Unknown authentication error"
@@ -118,46 +150,62 @@ except Exception as e:
     suspend fun getStoredCredentials(context: Context): Result<EpicCredentials> {
         return try {
             val authConfigPath = getAuthConfigPath(context)
+            val userJsonPath = getUserJsonPath(context)
 
             if (!hasStoredCredentials(context)) {
                 return Result.failure(Exception("No stored credentials found"))
             }
 
-            // Use legendary to get credentials - handles token refresh automatically
+            // Use legendary to refresh tokens if needed, then read file
             val pythonCode = """
 import json
 from legendary.core import LegendaryCore
 
 try:
-    core = LegendaryCore(override_config='$authConfigPath')
-
+    core = LegendaryCore()
     # login() will refresh tokens if needed
-    if core.login():
-        userdata = core.lgd.get_userdata()
-        print(json.dumps({
-            "access_token": userdata.get("access_token", ""),
-            "account_id": userdata.get("account_id", ""),
-            "display_name": userdata.get("displayName", "Epic User"),
-            "expires_at": userdata.get("expires_at", "")
-        }))
-    else:
-        print(json.dumps({"error": True, "message": "Login failed"}))
+    success = core.login()
+    print(json.dumps({"success": success}))
 except Exception as e:
     print(json.dumps({"error": True, "message": str(e)}))
-            """.trimIndent()
+"""
 
             val result = EpicPythonBridge.executePythonCode(context, pythonCode)
 
             if (result.isSuccess) {
                 val output = result.getOrNull() ?: ""
-                return parseCredentialsFromOutput(output)
+                Timber.d("Legendary login result: $output")
+
+                val json = JSONObject(output.trim())
+
+                if (json.has("error") && json.getBoolean("error")) {
+                    val errorMsg = json.optString("message", "Login failed")
+                    Timber.e("Epic credential refresh failed: $errorMsg")
+                    return Result.failure(Exception(errorMsg))
+                }
+
+                val success = json.optBoolean("success", false)
+                if (success) {
+                    Timber.i("Legendary login successful, reading credentials from file...")
+                    // Read credentials from the file
+                    val credentials = parseFullCredentialsFromFile(userJsonPath)
+                    if (credentials != null) {
+                        return Result.success(credentials)
+                    } else {
+                        return Result.failure(Exception("Login succeeded but failed to read credentials"))
+                    }
+                } else {
+                    return Result.failure(Exception("Login failed"))
+                }
             } else {
-                Timber.e("Legendary credentials command failed")
-                Result.failure(Exception("Failed to get credentials from Epic"))
+                val error = result.exceptionOrNull()
+                val errorMsg = error?.message ?: "Unknown error"
+                Timber.e(error, "Legendary credentials command failed: $errorMsg")
+                Result.failure(Exception("Failed to get credentials: $errorMsg", error))
             }
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get stored credentials via legendary")
-            Result.failure(e)
+            Timber.e(e, "Error getting Epic credentials: ${e.message}")
+            Result.failure(Exception("Error getting credentials: ${e.message}", e))
         }
     }
 
@@ -181,7 +229,7 @@ import json
 from legendary.core import LegendaryCore
 
 try:
-    core = LegendaryCore(override_config='$authConfigPath')
+    core = LegendaryCore()
     success = core.login()
     print(json.dumps({"valid": success}))
 except Exception as e:
@@ -212,92 +260,14 @@ except Exception as e:
      */
     suspend fun logout(context: Context): Result<Unit> {
         return try {
-            val authFile = File(getAuthConfigPath(context))
-            if (authFile.exists()) {
-                authFile.delete()
+            val userJsonFile = File(getUserJsonPath(context))
+            if (userJsonFile.exists()) {
+                userJsonFile.delete()
                 Timber.i("Epic credentials cleared")
             }
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to clear Epic credentials")
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Extract authorization code from input (handle both raw code and full URL)
-     */
-    private fun extractCodeFromInput(input: String): String {
-        return if (input.contains("code=")) {
-            val codeParam = input.substringAfter("code=", "")
-            if (codeParam.isEmpty()) {
-                ""
-            } else {
-                val cleanCode = codeParam.substringBefore("&")
-                Timber.d("Extracted authorization code from URL")
-                cleanCode
-            }
-        } else {
-            input.trim()
-        }
-    }
-
-    /**
-     * Parse authentication result from legendary output
-     */
-    private fun parseAuthenticationResult(authConfigPath: String, output: String): Result<EpicCredentials> {
-        return try {
-            Timber.d("Parsing legendary authentication output (length: ${output.length})")
-            val json = JSONObject(output.trim())
-
-            if (json.has("error") && json.getBoolean("error")) {
-                val errorMsg = json.optString("message", "Authentication failed")
-                Timber.e("Authentication failed: $errorMsg")
-                return Result.failure(Exception(errorMsg))
-            }
-
-            if (json.has("success") && json.getBoolean("success")) {
-                val credentials = EpicCredentials(
-                    accessToken = json.optString("access_token", ""),
-                    refreshToken = json.optString("refresh_token", ""),
-                    accountId = json.optString("account_id", ""),
-                    displayName = json.optString("display_name", "Epic User"),
-                    expiresAt = json.optLong("expires_at", 0L)
-                )
-
-                Timber.i("Authentication successful for user: ${credentials.displayName}")
-                return Result.success(credentials)
-            }
-
-            Result.failure(Exception("Invalid authentication response"))
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to parse authentication result")
-            Result.failure(e)
-        }
-    }
-
-    /**
-     * Parse credentials from legendary output
-     */
-    private fun parseCredentialsFromOutput(output: String): Result<EpicCredentials> {
-        return try {
-            val json = JSONObject(output.trim())
-
-            if (json.has("error") && json.getBoolean("error")) {
-                return Result.failure(Exception(json.optString("message", "Unknown error")))
-            }
-
-            val credentials = EpicCredentials(
-                accessToken = json.optString("access_token", ""),
-                refreshToken = json.optString("refresh_token", ""),
-                accountId = json.optString("account_id", ""),
-                displayName = json.optString("display_name", "Epic User"),
-                expiresAt = json.optLong("expires_at", 0L)
-            )
-
-            Result.success(credentials)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to parse credentials")
             Result.failure(e)
         }
     }

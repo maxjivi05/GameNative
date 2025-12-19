@@ -20,15 +20,16 @@ object EpicConstants {
     const val EPIC_AUTH_BASE_URL = "https://www.epicgames.com"
     const val EPIC_OAUTH_TOKEN_URL = "https://account-public-service-prod.ol.epicgames.com/account/api/oauth/token"
 
-    // Redirect URI for OAuth callback
-    const val EPIC_REDIRECT_URI = "https://legendary.gl/oauth"
+    // Redirect URI for OAuth callback - using Epic's standard redirect endpoint
+    const val EPIC_REDIRECT_URI = "https://www.epicgames.com/id/api/redirect"
 
     // OAuth authorization URL with all required parameters
+    // This is the standard Epic Games OAuth login flow
     const val EPIC_AUTH_LOGIN_URL =
         "$EPIC_AUTH_BASE_URL/id/login" +
         "?redirectUrl=$EPIC_REDIRECT_URI" +
-        "&client_id=$EPIC_CLIENT_ID" +
-        "&responseType=code"
+        "%3FclientId%3D$EPIC_CLIENT_ID" +
+        "%26responseType%3Dcode"
 
     // Epic GraphQL API endpoints
     const val EPIC_GRAPHQL_URL = "https://launcher.store.epicgames.com/graphql"

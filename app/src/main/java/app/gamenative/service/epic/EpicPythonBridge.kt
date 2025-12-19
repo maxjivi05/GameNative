@@ -80,8 +80,13 @@ object EpicPythonBridge {
                 sys.put("stdout", stdoutCapture)
 
                 try {
-                    // Execute the Python code
-                    python.getModule("__main__").callAttr("exec", pythonCode)
+                    // Execute the Python code with proper namespace
+                    // Create empty dicts for globals and locals to give exec() proper context
+                    val builtins = python.getBuiltins()
+                    val dict = builtins.callAttr("dict")
+                    
+                    // Execute with separate namespace to avoid frame issues
+                    builtins.callAttr("exec", pythonCode, dict)
 
                     // Get captured output
                     val output = stdoutCapture.callAttr("getvalue").toString()
