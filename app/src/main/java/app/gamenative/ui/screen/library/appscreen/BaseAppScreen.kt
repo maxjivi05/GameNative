@@ -589,6 +589,7 @@ abstract class BaseAppScreen {
         val downloadInfo = when (libraryItem.gameSource) {
             app.gamenative.data.GameSource.STEAM -> app.gamenative.service.SteamService.getAppDownloadInfo(displayInfo.gameId)
             app.gamenative.data.GameSource.GOG -> app.gamenative.service.gog.GOGService.getDownloadInfo(displayInfo.appId)
+            app.gamenative.data.GameSource.EPIC -> app.gamenative.service.gog.EpicService.getDownloadInfo(displayInfo.appId)
             app.gamenative.data.GameSource.CUSTOM_GAME -> null // Custom games don't support downloads yet
         }
 

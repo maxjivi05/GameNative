@@ -32,6 +32,7 @@ import app.gamenative.db.dao.AppInfoDao
 import app.gamenative.db.dao.CachedLicenseDao
 import app.gamenative.db.dao.EncryptedAppTicketDao
 import app.gamenative.db.dao.GOGGameDao
+import app.gamenative.db.dao.EpicGameDao
 
 const val DATABASE_NAME = "pluvia.db"
 
@@ -48,8 +49,9 @@ const val DATABASE_NAME = "pluvia.db"
         CachedLicense::class,
         EncryptedAppTicket::class,
         GOGGame::class,
+        EpicGame::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false, // Should export once stable.
 )
 @TypeConverters(
@@ -84,4 +86,5 @@ abstract class PluviaDatabase : RoomDatabase() {
     abstract fun encryptedAppTicketDao(): EncryptedAppTicketDao
 
     abstract fun gogGameDao(): GOGGameDao
+    abstract fun epicGameDao(): EpicGameDao
 }

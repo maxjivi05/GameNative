@@ -113,6 +113,19 @@ class PluviaApp : SplitCompatApplication() {
                 Timber.e(e, "Failed to initialize GOGService: ${e.message}")
             }
         }
+
+        // Initialize Epic service
+        appScope.launch {
+            try {
+                if (app.gamenative.service.gog.EpicService.initialize(applicationContext)) {
+                    Timber.d("EpicService initialized successfully")
+                } else {
+                    Timber.w("EpicService initialization returned false")
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to initialize EpicService: ${e.message}")
+            }
+        }
     }
 
     companion object {

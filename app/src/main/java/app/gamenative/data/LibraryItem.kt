@@ -7,6 +7,7 @@ enum class GameSource {
     STEAM,
     CUSTOM_GAME,
     GOG,
+    EPIC
     // Add other platforms here..
 }
 
@@ -53,6 +54,13 @@ data class LibraryItem(
                     iconHash
                 } else {
                     "${GOGGame.GOG_IMAGE_BASE_URL}/$iconHash"
+                }
+            }
+            GameSource.EPIC -> {
+                if(iconHash.isEmpty()){
+                    ""
+                } else {
+                    iconHash // EPIC stores the full URL.
                 }
             }
         }

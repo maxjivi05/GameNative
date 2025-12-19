@@ -65,6 +65,7 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
 import app.gamenative.service.gog.GOGService
+import app.gamenative.service.epic.EpicService
 import app.gamenative.ui.enums.PaneType
 import app.gamenative.ui.internal.fakeAppInfo
 import app.gamenative.ui.theme.PluviaTheme
@@ -240,6 +241,14 @@ internal fun AppItem(
                                 timber.log.Timber.d("GOG image URL for ${appInfo.name}: iconHash='${appInfo.iconHash}', clientIconUrl='${appInfo.clientIconUrl}', final='$gogUrl'")
                                 gogUrl
                             }
+                            GameSource.EPIC -> {
+                                // For Epic games, use the iconHash which contains the full image URL from Epic CDN
+                                // Epic stores full HTTPS URLs (e.g., https://cdn1.epicgames.com/...) in iconHash
+                                // This comes from EpicGame.iconUrl which prioritizes artSquare or primaryImageUrl
+                                val epicUrl = appInfo.iconHash.ifEmpty { appInfo.clientIconUrl }
+                                timber.log.Timber.d("Epic image URL for ${appInfo.name}: iconHash='${appInfo.iconHash}', final='$epicUrl'")
+                                epicUrl
+                            }
                             GameSource.STEAM -> {
                                 // For Steam games, use standard Steam URLs
                                 if (paneType == PaneType.GRID_CAPSULE) {
@@ -315,6 +324,7 @@ internal fun AppItem(
                             when (appInfo.gameSource) {
                                 GameSource.STEAM -> mutableStateOf(SteamService.isAppInstalled(appInfo.gameId))
                                 GameSource.GOG -> mutableStateOf(GOGService.isGameInstalled(appInfo.appId))
+                                GameSource.EPIC -> mutableStateOf(EpicService.isGameInstalled(appInfo.appId))
                                 GameSource.CUSTOM_GAME -> mutableStateOf(true) // Custom Games are always considered installed
                                 else -> mutableStateOf(false)
                             }
@@ -326,6 +336,7 @@ internal fun AppItem(
                                 isInstalled = when (appInfo.gameSource) {
                                     GameSource.STEAM -> SteamService.isAppInstalled(appInfo.gameId)
                                     GameSource.GOG -> GOGService.isGameInstalled(appInfo.appId)
+                                    GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId)
                                     GameSource.CUSTOM_GAME -> true
                                     else -> false
                                 }
@@ -496,20 +507,45 @@ internal fun GameInfoBlock(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             // Status indicator
-            val (statusText, statusColor) = if (isSteam) {
-                val text = when {
-                    isDownloading -> stringResource(R.string.library_installing)
-                    isInstalledSteam -> stringResource(R.string.library_installed)
-                    else -> stringResource(R.string.library_not_installed)
+            val (statusText, statusColor) = when (appInfo.gameSource) {
+                GameSource.STEAM -> {
+                    val text = when {
+                        isDownloading -> stringResource(R.string.library_installing)
+                        isInstalledSteam -> stringResource(R.string.library_installed)
+                        else -> stringResource(R.string.library_not_installed)
+                    }
+                    val color = when {
+                        isDownloading || isInstalledSteam -> MaterialTheme.colorScheme.tertiary
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    }
+                    text to color
                 }
-                val color = when {
-                    isDownloading || isInstalledSteam -> MaterialTheme.colorScheme.tertiary
-                    else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                GameSource.GOG, GameSource.EPIC -> {
+                    // GOG and Epic games - check installation status from their respective services
+                    val isInstalled = when (appInfo.gameSource) {
+                        GameSource.GOG -> GOGService.isGameInstalled(appInfo.appId)
+                        GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId)
+                        else -> false
+                    }
+                    val text = if (isInstalled) {
+                        stringResource(R.string.library_installed)
+                    } else {
+                        stringResource(R.string.library_not_installed)
+                    }
+                    val color = if (isInstalled) {
+                        MaterialTheme.colorScheme.tertiary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    }
+                    text to color
                 }
-                text to color
-            } else {
-                // Custom Games are considered ready (no Steam install tracking)
-                stringResource(R.string.library_status_ready) to MaterialTheme.colorScheme.tertiary
+                GameSource.CUSTOM_GAME -> {
+                    // Custom Games are considered ready (no install tracking)
+                    stringResource(R.string.library_status_ready) to MaterialTheme.colorScheme.tertiary
+                }
+                else -> {
+                    stringResource(R.string.library_not_installed) to MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                }
             }
 
             Row(
