@@ -205,8 +205,8 @@ chaquopy {
         pip {
             // Install GOGDL dependencies
             install("requests")
-            // Install Legendary for Epic Games Store integration
-            install("legendary-gl")
+            // Note: legendary-gl removed - using custom legendary-android bundled in src/main/python/
+            // legendary-gl uses multiprocessing which is incompatible with Android/Chaquopy
         }
     }
     sourceSets {
@@ -218,10 +218,10 @@ chaquopy {
 
 dependencies {
     implementation(libs.material)
-    
+
     // Chrome Custom Tabs for GOG OAuth
     implementation("androidx.browser:browser:1.8.0")
-    
+
     // JavaSteam
     val localBuild = false // Change to 'true' needed when building JavaSteam manually
     if (localBuild) {
