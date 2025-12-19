@@ -61,7 +61,9 @@ import app.gamenative.data.SteamApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
 import app.gamenative.service.SteamService
+import app.gamenative.service.epic.EpicService
 import app.gamenative.service.gog.GOGService
+import android.widget.Toast
 import app.gamenative.ui.component.settings.SettingsListDropdown
 import app.gamenative.ui.data.XServerState
 import app.gamenative.ui.theme.settingsTileColors
@@ -1494,13 +1496,27 @@ private fun setupXEnvironment(
         val wow64Mode = container.isWoW64Mode
         guestProgramLauncherComponent.setContainer(container);
         guestProgramLauncherComponent.setWineInfo(xServerState.value.wineInfo);
-        val guestExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " +
-            getWineStartCommand(context, appId, container, bootToContainer, appLaunchInfo, envVars, guestProgramLauncherComponent) +
-            (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
-        guestProgramLauncherComponent.isWoW64Mode = wow64Mode
-        guestProgramLauncherComponent.guestExecutable = guestExecutable
-        // Set steam type for selecting appropriate box64rc
-        guestProgramLauncherComponent.setSteamType(container.getSteamType())
+
+        val wineStartCommand = getWineStartCommand(context, appId, container, bootToContainer, appLaunchInfo, envVars, guestProgramLauncherComponent)
+        if (wineStartCommand == null) {
+            // Failed to get launch command (e.g., Epic game executable not found)
+            Timber.tag("XServerScreen").e("Failed to get Wine start command for appId: $appId")
+            onGameLaunchError?.invoke("Failed to launch game: executable not found")
+            // Continue with explorer.exe as fallback
+            val guestExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " \"explorer.exe\""
+            guestProgramLauncherComponent.isWoW64Mode = wow64Mode
+            guestProgramLauncherComponent.guestExecutable = guestExecutable
+            guestProgramLauncherComponent.setSteamType(container.getSteamType())
+        } else {
+
+            val guestExecutable = "wine explorer /desktop=shell," + xServer.screenInfo + " " +
+                wineStartCommand +
+                (if (container.execArgs.isNotEmpty()) " " + container.execArgs else "")
+            guestProgramLauncherComponent.isWoW64Mode = wow64Mode
+            guestProgramLauncherComponent.guestExecutable = guestExecutable
+            // Set steam type for selecting appropriate box64rc
+            guestProgramLauncherComponent.setSteamType(container.getSteamType())
+        }
 
         envVars.putAll(container.envVars)
         if (!envVars.has("WINEESYNC")) envVars.put("WINEESYNC", "1")
@@ -1650,7 +1666,7 @@ private fun getWineStartCommand(
     appLaunchInfo: LaunchInfo?,
     envVars: EnvVars,
     guestProgramLauncherComponent: GuestProgramLauncherComponent,
-): String {
+): String? {
     val tempDir = File(container.getRootDir(), ".wine/drive_c/windows/temp")
     FileUtils.clear(tempDir)
 
@@ -1660,9 +1676,10 @@ private fun getWineStartCommand(
     val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
     val isCustomGame = gameSource == GameSource.CUSTOM_GAME
     val isGOGGame = gameSource == GameSource.GOG
+    val isEpicGame = gameSource == GameSource.EPIC
     val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
 
-    if (!isCustomGame && !isGOGGame) {
+    if (!isCustomGame && !isGOGGame && !isEpicGame) {
         // Steam-specific setup
         if (container.executablePath.isEmpty()){
             container.executablePath = SteamService.getInstalledExe(gameId)
@@ -1699,6 +1716,29 @@ private fun getWineStartCommand(
 
         Timber.tag("XServerScreen").i("GOG launch command: $gogCommand")
         return "winhandler.exe $gogCommand"
+    } else if (isEpicGame) {
+        // For Epic games, use EpicService to get the launch command
+        Timber.tag("XServerScreen").i("Launching Epic game: $gameId")
+
+        // Create a LibraryItem from the appId
+        val libraryItem = LibraryItem(
+            appId = appId,
+            name = "", // Name not needed for launch command
+            gameSource = GameSource.EPIC
+        )
+
+        val epicCommand = EpicService.getWineStartCommand(
+            context = context,
+            libraryItem = libraryItem,
+            container = container,
+            bootToContainer = bootToContainer,
+            appLaunchInfo = appLaunchInfo,
+            envVars = envVars,
+            guestProgramLauncherComponent = guestProgramLauncherComponent
+        )
+
+        Timber.tag("XServerScreen").i("Epic launch command: $epicCommand")
+        return "winhandler.exe $epicCommand"
     } else if (isCustomGame) {
         // For Custom Games, we can launch even without appLaunchInfo
         // Use the executable path from container config. If missing, try to auto-detect

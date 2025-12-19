@@ -50,7 +50,7 @@ data class DownloadInfo(
             val bytesProgress = (bytesDownloaded.toFloat() / totalExpectedBytes.toFloat()).coerceIn(0f, 1f)
             return bytesProgress
         }
-        
+
         // Fallback to depot-based progress only if we don't have byte tracking
         var total = 0f
         for (i in progresses.indices) {

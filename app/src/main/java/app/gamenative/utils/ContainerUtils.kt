@@ -1005,6 +1005,7 @@ object ContainerUtils {
     /**
      * Extracts the game source from a container ID string
      * Note: GOG games use plain numeric IDs without prefix
+     * Note: Epic games can be UUID strings or simple strings like "Quail", "Puffin"
      */
     fun extractGameSourceFromContainerId(containerId: String): GameSource {
         return when {
@@ -1013,6 +1014,8 @@ object ContainerUtils {
             containerId.startsWith("CUSTOM_GAME_") -> GameSource.CUSTOM_GAME
             // GOG games use plain numeric IDs - check if it's just a number
             containerId.toIntOrNull() != null -> GameSource.GOG
+            // Epic games without prefix - use isEpicId() for detection
+            isEpicId(containerId) -> GameSource.EPIC
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }
