@@ -11,6 +11,18 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
+/**
+ *
+ * TODO: Download Game, Uninstall Game, Ensure we can track Progress via STDOUT parsing
+ * TODO: Launching games using the different execution params that we store.
+ *
+ * | Install | `legendary install <APPNAME> --base-path <PATH> --platform Windows` | Progress output |
+ * | Launch | `legendary launch <APPNAME> --offline --skip-version-check` | Launch output |
+ * TODO: We should see if we need to put any disclaimers around online games not being supported and THEY BETTER NOT TRY FORTNITE.
+ */
+
+
 /**
  * EpicManager handles Epic Games library management
  *

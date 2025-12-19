@@ -162,14 +162,18 @@ class EpicService : Service() {
 
 
         fun isGameInstalled(appName: String): Boolean {
-            // TODO: Implement when EpicManager is ready
-            return false
+            val game = getEpicGameOf(appName)
+            return game?.isInstalled == true
         }
 
 
         fun getInstallPath(appName: String): String? {
-            // TODO: Implement when EpicManager is ready
-            return null
+            val game = getEpicGameOf(appName)
+            return if (game?.isInstalled == true && game.installPath.isNotEmpty()) {
+                game.installPath
+            } else {
+                null
+            }
         }
 
 
@@ -208,9 +212,64 @@ class EpicService : Service() {
             return getInstance()?.epicManager?.fetchInstallSize(context, appName) ?: 0L
         }
 
-        fun downloadGame(context: Context, appName: String, installPath: String): Result<DownloadInfo?> {
-            // TODO: Implement when EpicManager is ready
-            return Result.failure(Exception("Not implemented"))
+        fun downloadGame(context: Context, appName: String, installPath: String): Result<DownloadInfo> {
+            val instance = getInstance()
+            if (instance == null) {
+                Timber.tag("Epic").e("Service not running")
+                return Result.failure(Exception("Service not running"))
+            }
+
+            // Check if already downloading
+            if (instance.activeDownloads.containsKey(appName)) {
+                Timber.tag("Epic").w("Download already in progress for $appName")
+                return Result.success(instance.activeDownloads[appName]!!)
+            }
+
+            // Start download in background
+            instance.scope.launch {
+                try {
+                    val game = instance.epicManager.getGameByAppName(appName)
+                    if (game == null) {
+                        Timber.tag("Epic").e("Game not found: $appName")
+                        return@launch
+                    }
+
+                    val downloadInfo = DownloadInfo()
+                    downloadInfo.setActive(true)
+                    instance.activeDownloads[appName] = downloadInfo
+
+                    Timber.tag("Epic").i("Starting download for ${game.title}")
+
+                    // Download the game
+                    val result = instance.epicDownloadManager.downloadGame(
+                        context = context,
+                        game = game,
+                        installPath = installPath,
+                        downloadInfo = downloadInfo
+                    )
+
+                    if (result.isSuccess) {
+                        Timber.tag("Epic").i("Download completed successfully for ${game.title}")
+
+                        // Update game as installed
+                        val updatedGame = game.copy(
+                            isInstalled = true,
+                            installPath = installPath
+                        )
+                        instance.epicManager.updateGame(updatedGame)
+                    } else {
+                        Timber.tag("Epic").e("Download failed: ${result.exceptionOrNull()?.message}")
+                    }
+
+                } catch (e: Exception) {
+                    Timber.tag("Epic").e(e, "Download exception for $appName")
+                } finally {
+                    instance.activeDownloads.remove(appName)
+                }
+            }
+
+            // Return the DownloadInfo immediately so caller can track progress
+            return Result.success(instance.activeDownloads[appName]!!)
         }
 
 
@@ -235,6 +294,9 @@ class EpicService : Service() {
 
     @Inject
     lateinit var epicManager: EpicManager
+
+    @Inject
+    lateinit var epicDownloadManager: EpicDownloadManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
