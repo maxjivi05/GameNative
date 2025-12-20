@@ -840,7 +840,7 @@ object ContainerUtils {
             }
         } else if (gameSource == GameSource.GOG) {
             // Ensure GOG games have the specific game directory mapped
-            val gameId = extractGameIdFromContainerId(containerId)
+            val gameId = extractGameIdFromContainerId(appId)
             val game = runBlocking { GOGService.getGOGGameOf(gameId.toString()) }
             if (game != null) {
                 val gameInstallPath = GOGConstants.getGameInstallPath(game.title)
