@@ -229,8 +229,11 @@ class EpicService : Service() {
             envVars: com.winlator.core.envvars.EnvVars,
             guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent
         ): String {
+            // Strip EPIC_ prefix to get the raw Epic app name
+            val epicAppName = libraryItem.appId.removePrefix("EPIC_")
+            
             val game = runBlocking {
-                getInstance()?.epicManager?.getGameByAppName(libraryItem.appId)
+                getInstance()?.epicManager?.getGameByAppName(epicAppName)
             }
 
             if (game == null || !game.isInstalled || game.installPath.isEmpty()) {

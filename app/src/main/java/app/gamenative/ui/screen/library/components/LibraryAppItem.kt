@@ -324,7 +324,7 @@ internal fun AppItem(
                             when (appInfo.gameSource) {
                                 GameSource.STEAM -> mutableStateOf(SteamService.isAppInstalled(appInfo.gameId))
                                 GameSource.GOG -> mutableStateOf(GOGService.isGameInstalled(appInfo.appId))
-                                GameSource.EPIC -> mutableStateOf(EpicService.isGameInstalled(appInfo.appId))
+                                GameSource.EPIC -> mutableStateOf(EpicService.isGameInstalled(appInfo.appId.removePrefix("EPIC_")))
                                 GameSource.CUSTOM_GAME -> mutableStateOf(true) // Custom Games are always considered installed
                                 else -> mutableStateOf(false)
                             }
@@ -336,7 +336,7 @@ internal fun AppItem(
                                 isInstalled = when (appInfo.gameSource) {
                                     GameSource.STEAM -> SteamService.isAppInstalled(appInfo.gameId)
                                     GameSource.GOG -> GOGService.isGameInstalled(appInfo.appId)
-                                    GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId)
+                                    GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId.removePrefix("EPIC_"))
                                     GameSource.CUSTOM_GAME -> true
                                     else -> false
                                 }
@@ -524,7 +524,7 @@ internal fun GameInfoBlock(
                     // GOG and Epic games - check installation status from their respective services
                     val isInstalled = when (appInfo.gameSource) {
                         GameSource.GOG -> GOGService.isGameInstalled(appInfo.appId)
-                        GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId)
+                        GameSource.EPIC -> EpicService.isGameInstalled(appInfo.appId.removePrefix("EPIC_"))
                         else -> false
                     }
                     val text = if (isInstalled) {

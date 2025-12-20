@@ -475,12 +475,8 @@ object ContainerUtils {
     }
 
     fun getContainerId(appId: String): String {
-        // For Epic games (no prefix, not numeric), prefix with EPIC_
-        return if (isEpicId(appId)) {
-            "EPIC_$appId"
-        } else {
-            appId
-        }
+        // appId already has prefix (STEAM_, EPIC_, CUSTOM_GAME_) or is a plain GOG ID
+        return appId
     }
 
     fun hasContainer(context: Context, appId: String): Boolean {
@@ -798,17 +794,10 @@ object ContainerUtils {
     fun getOrCreateContainer(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
 
-        // For Epic games (no prefix, not numeric), prefix the container ID with EPIC_ for consistency
-        val containerId = if (isEpicId(appId)) {
-            "EPIC_$appId"
+        val container = if (containerManager.hasContainer(appId)) {
+            containerManager.getContainerById(appId)
         } else {
-            appId
-        }
-
-        val container = if (containerManager.hasContainer(containerId)) {
-            containerManager.getContainerById(containerId)
-        } else {
-            createNewContainer(context, appId, containerId, containerManager)
+            createNewContainer(context, appId, appId, containerManager)
         }
 
         // Delete any existing FEXCore config files (we use environment variables only)
@@ -902,15 +891,8 @@ object ContainerUtils {
     fun getOrCreateContainerWithOverride(context: Context, appId: String): Container {
         val containerManager = ContainerManager(context)
 
-        // For Epic games (no prefix, not numeric), prefix the container ID with EPIC_ for consistency
-        val containerId = if (isEpicId(appId)) {
-            "EPIC_$appId"
-        } else {
-            appId
-        }
-
-        return if (containerManager.hasContainer(containerId)) {
-            val container = containerManager.getContainerById(containerId)
+        return if (containerManager.hasContainer(appId)) {
+            val container = containerManager.getContainerById(appId)
 
             // Apply temporary override if present (without saving to disk)
             if (IntentLaunchManager.hasTemporaryOverride(appId)) {
@@ -940,7 +922,7 @@ object ContainerUtils {
                 null
             }
 
-            createNewContainer(context, appId, containerId, containerManager, overrideConfig)
+            createNewContainer(context, appId, appId, containerManager, overrideConfig)
         }
     }
 
@@ -966,16 +948,15 @@ object ContainerUtils {
      * - EPIC_1dea8a6ddb544842a58e4b5c8675ff58 -> hashCode() of UUID
      * - CUSTOM_GAME_571969840 -> 571969840
      * - STEAM_123456(1) -> 123456
-     * - Unprefixed Epic IDs like "Daisy" or "Puffin" -> hashCode()
      */
     fun extractGameIdFromContainerId(containerId: String): Int {
         // Epic games use string catalog IDs which can't be converted to int
-        // For Epic, return a hash code of the UUID (after removing prefix if present)
+        // For Epic, return a hash code of the ID after stripping EPIC_ prefix
         val source = extractGameSourceFromContainerId(containerId)
         if (source == GameSource.EPIC) {
-            // Extract the UUID after EPIC_ prefix and return its hash code
-            val uuid = containerId.removePrefix("EPIC_")
-            return uuid.hashCode()
+            // Strip EPIC_ prefix and return hashCode
+            val epicId = containerId.removePrefix("EPIC_")
+            return epicId.hashCode()
         }
 
         // Check if this looks like an unprefixed Epic ID (not numeric, no known prefix)
@@ -1005,7 +986,6 @@ object ContainerUtils {
     /**
      * Extracts the game source from a container ID string
      * Note: GOG games use plain numeric IDs without prefix
-     * Note: Epic games can be UUID strings or simple strings like "Quail", "Puffin"
      */
     fun extractGameSourceFromContainerId(containerId: String): GameSource {
         return when {
@@ -1014,8 +994,6 @@ object ContainerUtils {
             containerId.startsWith("CUSTOM_GAME_") -> GameSource.CUSTOM_GAME
             // GOG games use plain numeric IDs - check if it's just a number
             containerId.toIntOrNull() != null -> GameSource.GOG
-            // Epic games without prefix - use isEpicId() for detection
-            isEpicId(containerId) -> GameSource.EPIC
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }

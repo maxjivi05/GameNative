@@ -273,10 +273,10 @@ class EpicAppScreen : BaseAppScreen() {
     override fun isInstalled(context: Context, libraryItem: LibraryItem): Boolean {
         Timber.tag(TAG).d("isInstalled: checking appId=${libraryItem.appId}")
         return try {
-            // For Epic games, use appName for Legendary CLI operations
-            val epicGame = EpicService.getEpicGameOf(libraryItem.appId)
-            val appName = epicGame?.appName ?: return false
-            val installed = EpicService.isGameInstalled(appName)
+            // Strip EPIC_ prefix to get raw Epic app name for Legendary CLI operations
+            val appName = libraryItem.appId.removePrefix("EPIC_")
+            val epicGame = EpicService.getEpicGameOf(appName)
+            val installed = epicGame?.isInstalled ?: false
             Timber.tag(TAG).d("isInstalled: appId=${libraryItem.appId}, appName=$appName, result=$installed")
             installed
         } catch (e: Exception) {
