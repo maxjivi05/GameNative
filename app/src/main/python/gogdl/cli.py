@@ -18,6 +18,42 @@ def display_version():
     print(f"{gogdl_version}")
 
 
+def get_game_ids(arguments, api_handler):
+    """List user's GOG games with full details"""
+    logger = logging.getLogger("GOGDL-GAME-IDS")
+    try:
+        # Check if we have valid credentials first
+        credentials = api_handler.auth_manager.get_credentials()
+        if not credentials:
+            logger.error("No valid credentials found. Please authenticate first.")
+            print(json.dumps([]))  # Return empty array instead of error object
+            return
+
+        logger.info("Fetching user's game library...")
+        logger.debug(f"Using access token: {credentials.get('access_token', '')[:20]}...")
+
+        # Use the same endpoint as does_user_own - it just returns owned game IDs
+        response = api_handler.session.get(f'{constants.GOG_EMBED}/user/data/games')
+
+        if not response.ok:
+            logger.error(f"Failed to fetch user data - HTTP {response.status_code}")
+            print(json.dumps([]))  # Return empty array instead of error object
+            return
+
+        user_data = response.json()
+        owned_games = user_data.get('owned', [])
+        if arguments.pretty:
+            print(json.dumps(owned_games, indent=2))
+        else:
+            print(json.dumps(owned_games))
+    except Exception as e:
+        logger.error(f"List command failed: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        # Return empty array on error so Kotlin can parse it
+        print(json.dumps([]))
+
+
 def handle_list(arguments, api_handler):
     """List user's GOG games with full details"""
     logger = logging.getLogger("GOGDL-LIST")
@@ -289,6 +325,9 @@ def main():
     # Handle list command
     if arguments.command == "list":
         switcher["list"] = lambda: handle_list(arguments, api_handler)
+
+    if arguments.command == "game-ids":
+        switcher["game-ids"] = lambda: get_game_ids(arguments, api_handler)
 
     # Handle download/info commands
     if arguments.command in ["download", "repair", "update", "info"]:

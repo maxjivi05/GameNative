@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
 
@@ -139,39 +140,46 @@ class GOGManager @Inject constructor(
             Timber.tag("GOG").i("Refreshing GOG library from GOG API...")
 
             // Fetch games from GOG via GOGDL Python backend
-            val listResult = listGames(context)
 
-            if (listResult.isFailure) {
-                val error = listResult.exceptionOrNull()
-                Timber.e(error, "Failed to fetch games from GOG: ${error?.message}")
-                return@withContext Result.failure(error ?: Exception("Failed to fetch GOG library"))
-            }
+            // TODO: Optimise this to grab a list of IDs from GOG, then start to pick through them and save to DB in batches.
+            // Step 1: Get all the Ids from teh Python bridge.
+            // Step 2, iterate over each one and after X amount, save to the DB (Let's have a CONST for that batch size). Start with 40 or so.
+            // Step 3: Send event that allows the library to update the screen.
+            var gameIdList = getGameIdList()
+             return@withContext Result.failure("TESTING....")
+        //     val listResult = listGames(context)
 
-            val games = listResult.getOrNull() ?: emptyList()
-            Timber.tag("GOG").i("Successfully fetched ${games.size} games from GOG")
+        //     if (listResult.isFailure) {
+        //         val error = listResult.exceptionOrNull()
+        //         Timber.e(error, "Failed to fetch games from GOG: ${error?.message}")
+        //         return@withContext Result.failure(error ?: Exception("Failed to fetch GOG library"))
+        //     }
 
-            if (games.isEmpty()) {
-                Timber.w("No games found in GOG library")
-                return@withContext Result.success(0)
-            }
+        //     val games = listResult.getOrNull() ?: emptyList()
+        //     Timber.tag("GOG").i("Successfully fetched ${games.size} games from GOG")
 
-            // Update database using upsert to preserve install status
-            Timber.d("Upserting ${games.size} games to database...")
-            gogGameDao.upsertPreservingInstallStatus(games)
+        //     if (games.isEmpty()) {
+        //         Timber.w("No games found in GOG library")
+        //         return@withContext Result.success(0)
+        //     }
 
-            // Scan for existing installations on filesystem
-            Timber.d("Scanning for existing installations...")
-            val detectedCount = detectAndUpdateExistingInstallations()
-            if (detectedCount > 0) {
-                Timber.i("Detected and updated $detectedCount existing installations")
-            }
+        //     // Update database using upsert to preserve install status
+        //     Timber.d("Upserting ${games.size} games to database...")
+        //     gogGameDao.upsertPreservingInstallStatus(games)
 
-            Timber.tag("GOG").i("Successfully refreshed GOG library with ${games.size} games")
-            Result.success(games.size)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to refresh GOG library")
-            Result.failure(e)
-        }
+        //     // Scan for existing installations on filesystem
+        //     Timber.d("Scanning for existing installations...")
+        //     val detectedCount = detectAndUpdateExistingInstallations()
+        //     if (detectedCount > 0) {
+        //         Timber.i("Detected and updated $detectedCount existing installations")
+        //     }
+
+        //     Timber.tag("GOG").i("Successfully refreshed GOG library with ${games.size} games")
+        //     Result.success(games.size)
+        // } catch (e: Exception) {
+        //     Timber.e(e, "Failed to refresh GOG library")
+        //     Result.failure(e)
+        // }
     }
 
     // TODO: Optimisation: Rather than grab ALL game details at once, we should batch process X amount at a time
@@ -205,6 +213,25 @@ class GOGManager @Inject constructor(
             Result.failure(e)
         }
     }
+
+    private suspend fun listGameIds(context: Context): Result<List<String>> {
+
+            Timber.tag("GOG").i("Fetching GOG Game Ids via GOGDL...")
+            val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+            if (!GOGAuthManager.hasStoredCredentials(context)) {
+              Timber.e("Cannot list games: not authenticated")
+              return Result.failure(Exception("Not authenticated. Please log in first."))
+          }
+
+            val result = GOGPythonBridge.executeCommand("--auth-config-path", authConfigPath, "game-ids")
+            val data = result.getOrNull()
+
+            val gameIds = JSONArray(data);
+            
+            Timber.tag("GOG").i("Result::: $result")
+            return Result.success(listOf(gameIds))
+    }
+
 
     private fun parseGamesFromJson(output: String): Result<List<GOGGame>> {
         return try {
