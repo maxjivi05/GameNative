@@ -63,7 +63,7 @@ interface GOGGameDao {
      * This is useful when refreshing the library from GOG API
      */
     @Transaction
-    suspend fun upsertMultipleGamesPreservingInstallStatus(games: List<GOGGame>) {
+    suspend fun upsertGamesPreservingInstallStatus(games: List<GOGGame>) {
         games.forEach { newGame ->
             val existingGame = getById(newGame.id)
             if (existingGame != null) {
@@ -82,26 +82,4 @@ interface GOGGameDao {
             }
         }
     }
-
-    /**
-     * PolymoprhForSingularTransactions to upsert and preserveInstallStatus
-     */
-    @Transaction
-    suspend fun upsertSingleGamePreservingInstallStatus(newGame: GOGGame) {
-            val existingGame = getById(newGame.id)
-            if (existingGame != null) {
-                // Preserve installation status, path, and size from existing game
-                val gameToInsert = newGame.copy(
-                    isInstalled = existingGame.isInstalled,
-                    installPath = existingGame.installPath,
-                    installSize = existingGame.installSize,
-                    lastPlayed = existingGame.lastPlayed,
-                    playTime = existingGame.playTime,
-                )
-                insert(gameToInsert)
-            } else {
-                // New game, insert as-is
-                insert(newGame)
-            }
-        }
-    }
+}
