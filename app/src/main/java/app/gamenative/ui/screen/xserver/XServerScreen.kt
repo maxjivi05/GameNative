@@ -233,7 +233,14 @@ fun XServerScreen(
     }
 
     var win32AppWorkarounds: Win32AppWorkarounds? by remember { mutableStateOf(null) }
+    var physicalControllerHandler: PhysicalControllerHandler? by remember { mutableStateOf(null) }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            physicalControllerHandler?.cleanup()
+            physicalControllerHandler = null
+        }
+    }
     var isKeyboardVisible = false
     var areControlsVisible by remember { mutableStateOf(false) }
     var isEditMode by remember { mutableStateOf(false) }
@@ -427,7 +434,8 @@ fun XServerScreen(
 
             var handled = false
             if (isGamepad) {
-                handled = PluviaApp.inputControlsView?.onKeyEvent(it.event) == true
+                handled = physicalControllerHandler?.onKeyEvent(it.event) == true
+                if (!handled) handled = PluviaApp.inputControlsView?.onKeyEvent(it.event) == true
                 // Final fallback to WinHandler passthrough
                 if (!handled) handled = xServerView!!.getxServer().winHandler.onKeyEvent(it.event)
             }
@@ -441,7 +449,8 @@ fun XServerScreen(
 
             var handled = false
             if (isGamepad && it.event != null) {
-                handled = PluviaApp.inputControlsView?.onGenericMotionEvent(it.event) == true
+                handled = physicalControllerHandler?.onGenericMotionEvent(it.event!!) == true
+                if (!handled) handled = PluviaApp.inputControlsView?.onGenericMotionEvent(it.event) == true
                 // Final fallback to WinHandler passthrough
                 if (!handled) handled = xServerView!!.getxServer().winHandler.onGenericMotionEvent(it.event)
             }
@@ -778,6 +787,8 @@ fun XServerScreen(
                     Timber.d("=== Profile Loading Complete ===")
                     setProfile(targetProfile)
 
+                    physicalControllerHandler = PhysicalControllerHandler(targetProfile, xServerView.getxServer(), gameBack)
+
                     // Store profile for auto-show logic
                     loadedProfile = targetProfile
                 }
@@ -1015,6 +1026,7 @@ fun XServerScreen(
                             if (PluviaApp.inputControlsView?.profile != null) {
                                 PluviaApp.inputControlsView?.setProfile(profile)
                             }
+                            physicalControllerHandler?.setProfile(profile)
                             showPhysicalControllerDialog = false
                         }
                     )
@@ -1901,7 +1913,7 @@ private fun installRedistributables(
                     try {
                         val relativePath = exeFile.relativeTo(commonRedistDir).path.replace('/', '\\')
                         val winePath = "$drive:\\_CommonRedist\\$relativePath"
-                        PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing Visual C++ Redistributable..."))
+                        PluviaApp.events.emit(AndroidEvent.SetBootingSplashText("Installing Visual C++ Redistributables..."))
                         Timber.i("Installing vcredist: $winePath")
                         val cmd = "wine $winePath /quiet /norestart && wineserver -k"
                         val output = guestProgramLauncherComponent.execShellCommand(cmd)
