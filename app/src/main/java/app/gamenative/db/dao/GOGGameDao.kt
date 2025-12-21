@@ -63,7 +63,7 @@ interface GOGGameDao {
      * This is useful when refreshing the library from GOG API
      */
     @Transaction
-    suspend fun upsertGamesPreservingInstallStatus(games: List<GOGGame>) {
+    suspend fun upsertPreservingInstallStatus(games: List<GOGGame>) {
         games.forEach { newGame ->
             val existingGame = getById(newGame.id)
             if (existingGame != null) {

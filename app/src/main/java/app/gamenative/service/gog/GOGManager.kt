@@ -190,7 +190,7 @@ class GOGManager @Inject constructor(
 
                 if ((index + 1) % REFRESH_BATCH_SIZE == 0 || index == gameIds.size - 1) {
                     if (games.isNotEmpty()) {
-                        gogGameDao.upsertGamesPreservingInstallStatus(games)
+                        gogGameDao.upsertPreservingInstallStatus(games)
                         Timber.tag("GOG").d("Batch inserted ${games.size} games (processed ${index + 1}/${gameIds.size})")
                         games.clear()
                     }
