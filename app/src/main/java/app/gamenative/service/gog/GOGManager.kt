@@ -160,19 +160,41 @@ class GOGManager @Inject constructor(
             var totalProcessed = 0
 
             Timber.tag("GOG").d("Getting Game Details for GOG Games...")
-            for(id in gameIds) {
-                val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
-                val result = GOGPythonBridge.executeCommand("--auth-config-path", authConfigPath, "game-details", "--game_id", id, "--pretty")
-                val output = result.getOrNull() ?: ""
-                if(result != null){
-                    Timber.tag("GOG").d("Got Game Details for ID: $id")
-                    val gameDetails = org.json.JSONObject(output.trim())
-                    var game = parseGameObject(gameDetails)
-                    gogGameDao.upsertSingleGamePreservingInstallStatus(game)
-                    Timber.tag("GOG").d("Refreshed GOG game ID $id: ${game.title}")
-                    totalProcessed++
-                } else {
-                    Timber.w("GOG game ID $id not found in library after refresh")
+
+            val games = mutableListOf<GOGGame>()
+            val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+
+            for ((index, id) in gameIds.withIndex()) {
+                try {
+                    val result = GOGPythonBridge.executeCommand(
+                        "--auth-config-path", authConfigPath,
+                        "game-details",
+                        "--game_id", id,
+                        "--pretty"
+                    )
+
+                    if (result.isSuccess) {
+                        val output = result.getOrNull() ?: ""
+                        Timber.tag("GOG").d("Got Game Details for ID: $id")
+                        val gameDetails = JSONObject(output.trim())
+                        val game = parseGameObject(gameDetails)
+                        games.add(game)
+                        Timber.tag("GOG").d("Refreshed GOG game ID $id: ${game.title}")
+                        totalProcessed++
+                    } else {
+                        Timber.w("GOG game ID $id not found in library after refresh")
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to parse game details for ID: $id")
+                }
+
+                // Batch upsert every 20 games or at the end
+                if ((index + 1) % 20 == 0 || index == gameIds.size - 1) {
+                    if (games.isNotEmpty()) {
+                        gogGameDao.upsertMultipleGamesPreservingInstallStatus(games)
+                        Timber.tag("GOG").d("Batch inserted ${games.size} games (processed ${index + 1}/${gameIds.size})")
+                        games.clear()
+                    }
                 }
             }
             val detectedCount = detectAndUpdateExistingInstallations()
