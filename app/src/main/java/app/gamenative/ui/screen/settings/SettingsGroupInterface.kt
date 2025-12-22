@@ -301,54 +301,6 @@ fun SettingsGroupInterface(
                 gogLoginSuccess = false
             }
         )
-
-        SettingsMenuLink(
-            colors = settingsTileColorsAlt(),
-            title = { Text(text = stringResource(R.string.gog_settings_sync_title)) },
-            subtitle = {
-                Text(
-                    text = when {
-                        gogLibrarySyncing -> stringResource(R.string.gog_settings_sync_subtitle_syncing)
-                        gogLibrarySyncError != null -> stringResource(R.string.gog_settings_sync_subtitle_error, gogLibrarySyncError!!)
-                        gogLibrarySyncSuccess -> stringResource(R.string.gog_settings_sync_subtitle_success, gogLibraryGameCount)
-                        else -> stringResource(R.string.gog_settings_sync_subtitle_default)
-                    }
-                )
-            },
-            enabled = !gogLibrarySyncing,
-            onClick = {
-                gogLibrarySyncing = true
-                gogLibrarySyncError = null
-                gogLibrarySyncSuccess = false
-
-                coroutineScope.launch {
-                    try {
-                        Timber.i("[SettingsGOG]: Syncing GOG library...")
-
-                        // Use GOGService.refreshLibrary() which handles everything
-                        val result = GOGService.refreshLibrary(context)
-
-                        if (result.isSuccess) {
-                            val count = result.getOrNull() ?: 0
-                            gogLibraryGameCount = count
-                            Timber.i("[SettingsGOG]: ✓ Successfully synced $count games from GOG")
-
-                            gogLibrarySyncing = false
-                            gogLibrarySyncSuccess = true
-                        } else {
-                            val error = result.exceptionOrNull()?.message ?: "Failed to sync library"
-                            Timber.e("[SettingsGOG]: Library sync failed: $error")
-                            gogLibrarySyncing = false
-                            gogLibrarySyncError = error
-                        }
-                    } catch (e: Exception) {
-                        Timber.e(e, "[SettingsGOG]: Library sync exception: ${e.message}")
-                        gogLibrarySyncing = false
-                        gogLibrarySyncError = e.message ?: "Sync failed"
-                    }
-                }
-            }
-        )
     }
 
     // Downloads settings
