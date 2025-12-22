@@ -71,7 +71,8 @@ class GOGManager @Inject constructor(
 
     // Thread-safe cache for download sizes
     private val downloadSizeCache = ConcurrentHashMap<String, String>()
-    private val REFRESH_BATCH_SIZE = 20
+    private val REFRESH_BATCH_SIZE = 10
+
     suspend fun getGameById(gameId: String): GOGGame? {
         return withContext(Dispatchers.IO) {
             try {
@@ -237,29 +238,6 @@ class GOGManager @Inject constructor(
             Timber.tag("GOG").i("Successfully fetched ${gameIds.size} game IDs")
 
             return Result.success(gameIds)
-    }
-
-
-    private fun parseGamesFromJson(output: String): Result<List<GOGGame>> {
-        return try {
-            val gamesArray = org.json.JSONArray(output.trim())
-            val games = mutableListOf<GOGGame>()
-
-            for (i in 0 until gamesArray.length()) {
-                try {
-                    val gameObj = gamesArray.getJSONObject(i)
-                    games.add(parseGameObject(gameObj))
-                } catch (e: Exception) {
-                    Timber.w(e, "Failed to parse game at index $i, skipping")
-                }
-            }
-
-            Timber.i("Successfully parsed ${games.size} games from GOG library")
-            Result.success(games)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to parse GOG library JSON")
-            Result.failure(Exception("Failed to parse GOG library: ${e.message}", e))
-        }
     }
 
     private fun parseGameObject(gameObj: JSONObject): GOGGame {
