@@ -959,8 +959,6 @@ object ContainerUtils {
             containerId.startsWith("STEAM_") -> GameSource.STEAM
             containerId.startsWith("CUSTOM_GAME_") -> GameSource.CUSTOM_GAME
             containerId.startsWith("GOG_") -> GameSource.GOG
-            // Legacy fallback for old GOG containers without prefix (numeric only)
-            containerId.toIntOrNull() != null -> GameSource.GOG
             // Add other platforms here..
             else -> GameSource.STEAM // default fallback
         }
