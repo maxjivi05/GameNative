@@ -951,7 +951,7 @@
     <string name="gog_login_auto_auth_info">Tap \'Open GOG Login\' and sign in. Once logged in, please take the code from the success URL OR copy the entire URL and paste it below</string>
     <string name="gog_login_auth_example">Example: https://embed.gog.com/on_login_success?origin=client&amp;code=AUTH_CODE_HERE</string>
     <string name="gog_login_open_button">Open GOG Login</string>
-    <string name="gog_login_manual_entry">Paste your code below</string>
+    <string name="gog_login_manual_entry">Paste your code or success URL below</string>
     <string name="gog_login_auth_code_label">Authorization Code or login success URL</string>
     <string name="gog_login_auth_code_placeholder">Paste code or url here</string>
     <string name="gog_login_button">Login</string>
