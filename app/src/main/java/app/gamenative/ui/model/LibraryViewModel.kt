@@ -102,7 +102,6 @@ class LibraryViewModel @Inject constructor(
                 if (appList.size != apps.size) {
                     // Don't filter if it's no change
                     appList = apps
-                    onFilterApps(paginationCurrentPage)
                 }
             }
         }
@@ -342,18 +341,17 @@ class LibraryViewModel @Inject constructor(
                 LibraryEntry(
                     item = LibraryItem(
                         index = 0,
-                        appId = "${GameSource.GOG.name}_${game.id}",  // Use GOG_ prefix for consistency
+                        appId = "${GameSource.GOG.name}_${game.id}",
                         name = game.title,
-                        iconHash = game.imageUrl.ifEmpty { game.iconUrl },  // Use imageUrl (banner) with iconUrl as fallback
+                        iconHash = game.imageUrl.ifEmpty { game.iconUrl },
                         isShared = false,
                         gameSource = GameSource.GOG,
                     ),
                     isInstalled = game.isInstalled,
                 )
             }
-            // Calculate GOG installed count
-            val gogInstalledCount = filteredGOGGames.count { it.isInstalled }
 
+            val gogInstalledCount = filteredGOGGames.count { it.isInstalled }
             // Save game counts for skeleton loaders (only when not searching, to get accurate counts)
             // This needs to happen before filtering by source, so we save the total counts
             if (currentState.searchQuery.isEmpty()) {
