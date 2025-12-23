@@ -530,7 +530,7 @@ class GOGManager @Inject constructor(
                     "--platform", "windows",
                     "--path", installPath,
                     "--support", supportDir.absolutePath,
-                    "--skip-dlcs",
+                    "--with-dlcs",
                     "--lang", "en-US",
                     "--max-workers", "1",
                 )
