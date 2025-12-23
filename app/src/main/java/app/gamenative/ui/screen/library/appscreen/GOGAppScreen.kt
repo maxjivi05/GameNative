@@ -10,7 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
@@ -23,17 +22,13 @@ import app.gamenative.service.gog.GOGService
 import app.gamenative.ui.data.AppMenuOption
 import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
-import app.gamenative.utils.ContainerUtils
 import com.winlator.container.ContainerData
-import com.winlator.container.ContainerManager
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.File
-import java.util.Locale
 
 /**
  * GOG-specific implementation of BaseAppScreen
@@ -108,7 +103,7 @@ class GOGAppScreen : BaseAppScreen() {
     @Composable
     override fun getGameDisplayInfo(
         context: Context,
-        libraryItem: LibraryItem
+        libraryItem: LibraryItem,
     ): GameDisplayInfo {
         Timber.tag(TAG).d("getGameDisplayInfo: appId=${libraryItem.appId}, name=${libraryItem.name}")
         // Extract numeric gameId for GOGService calls
@@ -132,35 +127,6 @@ class GOGAppScreen : BaseAppScreen() {
         LaunchedEffect(gameId, refreshTrigger) {
             gogGame = GOGService.getGOGGameOf(gameId)
             val game = gogGame
-            if (game != null) {
-                Timber.tag(TAG).d("""
-                    |=== GOG Game Object ===
-                    |Game ID: $gameId
-                    |Title: ${game.title}
-                    |Developer: ${game.developer}
-                    |Publisher: ${game.publisher}
-                    |Release Date: ${game.releaseDate}
-                    |Description: ${game.description.take(100)}...
-                    |Icon URL: ${game.iconUrl}
-                    |Image URL: ${game.imageUrl}
-                    |Install Path: ${game.installPath}
-                    |Is Installed: ${game.isInstalled}
-                    |Download Size: ${game.downloadSize} bytes (${game.downloadSize / 1_000_000_000.0} GB)
-                    |Install Size: ${game.installSize} bytes (${game.installSize / 1_000_000_000.0} GB)
-                    |Genres: ${game.genres.joinToString(", ")}
-                    |Languages: ${game.languages.joinToString(", ")}
-                    |Play Time: ${game.playTime} seconds
-                    |Last Played: ${game.lastPlayed}
-                    |Type: ${game.type}
-                    |======================
-                """.trimMargin())
-            } else {
-                Timber.tag(TAG).w("""
-                    |GOG game not found in database for gameId=$gameId
-                    |This usually means the game was added as a container but GOG library hasn't synced yet.
-                    |The game will use fallback data from the LibraryItem until GOG library is refreshed.
-                """.trimMargin())
-            }
             game
         }
 
@@ -169,11 +135,15 @@ class GOGAppScreen : BaseAppScreen() {
         // Format sizes for display
         val sizeOnDisk = if (game != null && game.isInstalled && game.installSize > 0) {
             formatBytes(game.installSize)
-        } else null
+        } else {
+            null
+        }
 
         val sizeFromStore = if (game != null && game.downloadSize > 0) {
             formatBytes(game.downloadSize)
-        } else null
+        } else {
+            null
+        }
 
         // Parse GOG's ISO 8601 release date string to Unix timestamp
         // GOG returns dates like "2022-08-18T17:50:00+0300" (without colon in timezone)
@@ -197,13 +167,13 @@ class GOGAppScreen : BaseAppScreen() {
             name = game?.title ?: libraryItem.name,
             iconUrl = game?.iconUrl ?: libraryItem.iconHash,
             heroImageUrl = game?.imageUrl ?: game?.iconUrl ?: libraryItem.iconHash,
-            gameId = libraryItem.gameId,  // Use gameId property which handles conversion
+            gameId = libraryItem.gameId, // Use gameId property which handles conversion
             appId = libraryItem.appId,
             releaseDate = releaseDateTimestamp,
-            developer = game?.developer?.takeIf { it.isNotEmpty() } ?: "",  // GOG API doesn't provide this
+            developer = game?.developer?.takeIf { it.isNotEmpty() } ?: "", // GOG API doesn't provide this
             installLocation = game?.installPath?.takeIf { it.isNotEmpty() },
             sizeOnDisk = sizeOnDisk,
-            sizeFromStore = sizeFromStore
+            sizeFromStore = sizeFromStore,
         )
         Timber.tag(TAG).d("Returning GameDisplayInfo: name=${displayInfo.name}, iconUrl=${displayInfo.iconUrl}, heroImageUrl=${displayInfo.heroImageUrl}, developer=${displayInfo.developer}, installLocation=${displayInfo.installLocation}")
         return displayInfo
@@ -278,10 +248,6 @@ class GOGAppScreen : BaseAppScreen() {
         }
     }
 
-    /**
-     * Perform the actual download after confirmation
-     * Delegates to GOGService/GOGManager for proper service layer separation
-     */
     private fun performDownload(context: Context, libraryItem: LibraryItem, onClickPlay: (Boolean) -> Unit) {
         val gameId = libraryItem.gameId.toString()
         Timber.i("Starting GOG game download: ${libraryItem.appId}")
@@ -296,7 +262,7 @@ class GOGAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Starting download for ${libraryItem.name}...",
-                        android.widget.Toast.LENGTH_SHORT
+                        android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
 
@@ -313,7 +279,7 @@ class GOGAppScreen : BaseAppScreen() {
                         android.widget.Toast.makeText(
                             context,
                             "Failed to start download: ${error?.message}",
-                            android.widget.Toast.LENGTH_LONG
+                            android.widget.Toast.LENGTH_LONG,
                         ).show()
                     }
                 }
@@ -323,7 +289,7 @@ class GOGAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Download error: ${e.message}",
-                        android.widget.Toast.LENGTH_LONG
+                        android.widget.Toast.LENGTH_LONG,
                     ).show()
                 }
             }
@@ -367,7 +333,7 @@ class GOGAppScreen : BaseAppScreen() {
             android.widget.Toast.makeText(
                 context,
                 "Download cancelled",
-                android.widget.Toast.LENGTH_SHORT
+                android.widget.Toast.LENGTH_SHORT,
             ).show()
         } else if (isInstalled) {
             // Show uninstall confirmation dialog
@@ -376,10 +342,6 @@ class GOGAppScreen : BaseAppScreen() {
         }
     }
 
-    /**
-     * Perform the actual uninstall of a GOG game
-     * Delegates to GOGService/GOGManager for proper service layer separation
-     */
     private fun performUninstall(context: Context, libraryItem: LibraryItem) {
         Timber.i("Uninstalling GOG game: ${libraryItem.appId}")
         CoroutineScope(Dispatchers.IO).launch {
@@ -393,7 +355,7 @@ class GOGAppScreen : BaseAppScreen() {
                         android.widget.Toast.makeText(
                             context,
                             "Game uninstalled successfully",
-                            android.widget.Toast.LENGTH_SHORT
+                            android.widget.Toast.LENGTH_SHORT,
                         ).show()
                     }
                 } else {
@@ -403,7 +365,7 @@ class GOGAppScreen : BaseAppScreen() {
                         android.widget.Toast.makeText(
                             context,
                             "Failed to uninstall game: ${error?.message}",
-                            android.widget.Toast.LENGTH_LONG
+                            android.widget.Toast.LENGTH_LONG,
                         ).show()
                     }
                 }
@@ -413,7 +375,7 @@ class GOGAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Failed to uninstall game: ${e.message}",
-                        android.widget.Toast.LENGTH_LONG
+                        android.widget.Toast.LENGTH_LONG,
                     ).show()
                 }
             }
@@ -478,7 +440,7 @@ class GOGAppScreen : BaseAppScreen() {
         onEditContainer: () -> Unit,
         onBack: () -> Unit,
         onClickPlay: (Boolean) -> Unit,
-        isInstalled: Boolean
+        isInstalled: Boolean,
     ): List<AppMenuOption> {
         val options = mutableListOf<AppMenuOption>()
         return options
@@ -490,36 +452,17 @@ class GOGAppScreen : BaseAppScreen() {
     @Composable
     override fun getResetContainerOption(
         context: Context,
-        libraryItem: LibraryItem
+        libraryItem: LibraryItem,
     ): AppMenuOption {
         return AppMenuOption(
             optionType = AppOptionMenuType.ResetToDefaults,
             onClick = {
                 resetContainerToDefaults(context, libraryItem)
-            }
+            },
         )
     }
-
-    /**
-     * Override to launch GOG games properly (not as boot-to-container)
-     */
-    override fun onRunContainerClick(
-        context: Context,
-        libraryItem: LibraryItem,
-        onClickPlay: (Boolean) -> Unit
-    ) {
-        // GOG games should launch with bootToContainer=false so getWineStartCommand
-        // can construct the proper launch command via GOGGameManager
-        Timber.tag(TAG).i("Launching GOG game: ${libraryItem.appId}")
-        onClickPlay(false)
-    }
-
-    /**
-     * GOG games don't need special image fetching logic like Custom Games
-     * Images come from GOG CDN
-     */
     override fun getGameFolderPathForImageFetch(context: Context, libraryItem: LibraryItem): String? {
-        return null // GOG uses CDN images, not local files
+        return null // GOG Stores full URLs in their database entry.
     }
 
     override fun observeGameState(
@@ -527,7 +470,7 @@ class GOGAppScreen : BaseAppScreen() {
         libraryItem: LibraryItem,
         onStateChanged: () -> Unit,
         onProgressChanged: (Float) -> Unit,
-        onHasPartialDownloadChanged: ((Boolean) -> Unit)?
+        onHasPartialDownloadChanged: ((Boolean) -> Unit)?,
     ): (() -> Unit)? {
         Timber.tag(TAG).d("[OBSERVE] Setting up observeGameState for appId=${libraryItem.appId}, gameId=${libraryItem.gameId}")
         val disposables = mutableListOf<() -> Unit>()
@@ -575,7 +518,8 @@ class GOGAppScreen : BaseAppScreen() {
             }
         }
         app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener)
-        disposables += { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener) }
+        disposables +=
+            { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener) }
 
         // Listen for install status changes
         val installListener: (app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged) -> Unit = { event ->
@@ -586,7 +530,8 @@ class GOGAppScreen : BaseAppScreen() {
             }
         }
         app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener)
-        disposables += { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener) }
+        disposables +=
+            { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener) }
 
         // Return cleanup function
         return {
@@ -602,7 +547,7 @@ class GOGAppScreen : BaseAppScreen() {
         libraryItem: LibraryItem,
         onDismiss: () -> Unit,
         onEditContainer: () -> Unit,
-        onBack: () -> Unit
+        onBack: () -> Unit,
     ) {
         Timber.tag(TAG).d("AdditionalDialogs: composing for appId=${libraryItem.appId}")
         val context = LocalContext.current
@@ -651,8 +596,8 @@ class GOGAppScreen : BaseAppScreen() {
                         text = stringResource(
                             R.string.gog_install_confirmation_message,
                             gogGame?.title ?: libraryItem.name,
-                            sizeText
-                        )
+                            sizeText,
+                        ),
                     )
                 },
                 confirmButton = {
@@ -660,7 +605,7 @@ class GOGAppScreen : BaseAppScreen() {
                         onClick = {
                             hideInstallDialog(libraryItem.appId)
                             performDownload(context, libraryItem) {}
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.download))
                     }
@@ -669,11 +614,11 @@ class GOGAppScreen : BaseAppScreen() {
                     TextButton(
                         onClick = {
                             hideInstallDialog(libraryItem.appId)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
-                }
+                },
             )
         }
 
@@ -694,8 +639,8 @@ class GOGAppScreen : BaseAppScreen() {
                     Text(
                         text = stringResource(
                             R.string.gog_uninstall_confirmation_message,
-                            gogGame?.title ?: libraryItem.name
-                        )
+                            gogGame?.title ?: libraryItem.name,
+                        ),
                     )
                 },
                 confirmButton = {
@@ -703,7 +648,7 @@ class GOGAppScreen : BaseAppScreen() {
                         onClick = {
                             hideUninstallDialog(libraryItem.appId)
                             performUninstall(context, libraryItem)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.uninstall))
                     }
@@ -712,11 +657,11 @@ class GOGAppScreen : BaseAppScreen() {
                     TextButton(
                         onClick = {
                             hideUninstallDialog(libraryItem.appId)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
-                }
+                },
             )
         }
     }
