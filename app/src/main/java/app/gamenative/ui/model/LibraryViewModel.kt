@@ -103,8 +103,8 @@ class LibraryViewModel @Inject constructor(
                 // ownerIds = SteamService.familyMembers.ifEmpty { listOf(SteamService.userSteamId!!.accountID.toInt()) },
             ).collect { apps ->
                 Timber.tag("LibraryViewModel").d("Collecting ${apps.size} apps")
+                // Check if the list has actually changed before triggering a re-filter
                 if (appList.size != apps.size) {
-                    // Don't filter if it's no change
                     appList = apps
                     onFilterApps(paginationCurrentPage)
                 }
@@ -115,11 +115,9 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             gogGameDao.getAll().collect { games ->
                 Timber.tag("LibraryViewModel").d("Collecting ${games.size} GOG games")
-
-                val hasChanges = gogGameList.size != games.size || gogGameList != games
-                gogGameList = games
-
-                if (hasChanges) {
+                // Check if the list has actually changed before triggering a re-filter
+                if (gogGameList != games) {
+                    gogGameList = games
                     onFilterApps(paginationCurrentPage)
                 }
             }
@@ -257,18 +255,19 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun onFilterApps(paginationPage: Int = 0): Job {
-        // May be filtering 1000+ apps - in future should paginate at the point of DAO request
         Timber.tag("LibraryViewModel").d("onFilterApps - appList.size: ${appList.size}, isFirstLoad: $isFirstLoad")
-        return viewModelScope.launch {
+        return viewModelScope.launch(Dispatchers.IO) {
             _state.update { it.copy(isLoading = true) }
 
             val currentState = _state.value
             val currentFilter = AppFilter.getAppType(currentState.appInfoSortType)
 
+            // Fetch download directory apps once on IO thread and cache as a HashSet for O(1) lookups
             val downloadDirectoryApps = DownloadService.getDownloadDirectoryApps()
+            val downloadDirectorySet = downloadDirectoryApps.toHashSet()
 
             // Filter Steam apps first (no pagination yet)
-            val downloadDirectorySet = downloadDirectoryApps.toHashSet()
+            // Note: Don't sort individual lists - we'll sort the combined list for consistent ordering
             val filteredSteamApps: List<SteamApp> = appList
                 .asSequence()
                 .filter { item ->
@@ -360,16 +359,15 @@ class LibraryViewModel @Inject constructor(
                         true
                     }
                 }
-                .sortedBy { it.title.lowercase() }
                 .toList()
 
             val gogEntries = filteredGOGGames.map { game ->
                 LibraryEntry(
                     item = LibraryItem(
                         index = 0,
-                        appId = game.id,  // Use plain game ID without GOG_ prefix
+                        appId = "${GameSource.GOG.name}_${game.id}",
                         name = game.title,
-                        iconHash = game.imageUrl.ifEmpty { game.iconUrl },  // Use imageUrl (banner) with iconUrl as fallback
+                        iconHash = game.imageUrl.ifEmpty { game.iconUrl },
                         isShared = false,
                         gameSource = GameSource.GOG,
                     ),
@@ -394,7 +392,6 @@ class LibraryViewModel @Inject constructor(
                         true
                     }
                 }
-                .sortedBy { it.title.lowercase() }
                 .toList()
 
             val epicEntries = filteredEpicGames.map { game ->
@@ -415,6 +412,7 @@ class LibraryViewModel @Inject constructor(
             val gogInstalledCount = filteredGOGGames.count { it.isInstalled }
             val epicInstalledCount = filteredEpicGames.count { it.isInstalled }
 
+            val gogInstalledCount = filteredGOGGames.count { it.isInstalled }
             // Save game counts for skeleton loaders (only when not searching, to get accurate counts)
             // This needs to happen before filtering by source, so we save the total counts
             if (currentState.searchQuery.isEmpty()) {
@@ -433,18 +431,25 @@ class LibraryViewModel @Inject constructor(
             val includeGOG = _state.value.showGOGInLibrary
             val includeEpic = _state.value.showEpicInLibrary
 
-            // Combine all lists
+            // Combine all lists and sort: installed games first, then alphabetically
             val combined = buildList<LibraryEntry> {
                 if (includeSteam) addAll(steamEntries)
                 if (includeOpen) addAll(customEntries)
                 if (includeGOG) addAll(gogEntries)
                 if (includeEpic) addAll(epicEntries)
             }.sortedWith(
-                // Always sort by installed status first (installed games at top), then alphabetically within each group
+                // Primary sort: installed status (0 = installed at top, 1 = not installed at bottom)
+                // Secondary sort: alphabetically by name (case-insensitive)
                 compareBy<LibraryEntry> { entry ->
                     if (entry.isInstalled) 0 else 1
-                }.thenBy { it.item.name.lowercase() } // Alphabetical sorting within installed and uninstalled groups
-            ).mapIndexed { idx, entry -> entry.item.copy(index = idx) }
+                }.thenBy { it.item.name.lowercase() }
+            ).also { sortedList ->
+                // Log first few items to verify sorting
+                if (sortedList.isNotEmpty()) {
+                    val installedCount = sortedList.count { it.isInstalled }
+                    val first10 = sortedList.take(10)
+                }
+            }.mapIndexed { idx, entry -> entry.item.copy(index = idx) }
 
             // Total count for the current filter
             val totalFound = combined.size
