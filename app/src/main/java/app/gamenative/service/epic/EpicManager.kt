@@ -67,7 +67,7 @@ class EpicManager @Inject constructor(
         val catalogItemId: String?, // Catalogue Item ID is the one we use to grab the game details -> It's the most important ID.
         val appName: String,
         val country: String?,
-        val platform List<String>?,
+        val platform: List<String>?,
         val productId: String,
         val sandboxName: String,
         val sandboxType: String,
