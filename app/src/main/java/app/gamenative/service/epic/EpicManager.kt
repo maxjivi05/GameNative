@@ -42,6 +42,12 @@ class EpicManager @Inject constructor(
     private val epicGameDao: EpicGameDao,
 ) {
 
+    private val httpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     // DarkSiders 2 example for grabbing the details. Requires the Namespace and the catalog ID.
     // https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/091d95ea332843498122beee1a786d71/bulk/items?id=8c04901974534bd0818f747952b0a19b&includeDLCDetails=true&includeMainGameDetails=true
 
@@ -193,7 +199,14 @@ class EpicManager @Inject constructor(
         }
     }
 
-    private suspend fun listGamesKotlin(context: Context): Result<List<EpicGame>> {
+    // We should only pull out the following:
+    // namespace
+    // appName
+    // productId
+    // catalogItemId
+    // Country is the confusing one, Looks like I should parse this too ????
+
+    private suspend fun listGamesKotlin(context: Context, cursor: String? = null): Result<List<EpicGame>> {
         return try {
             Timber.tag("Epic").d("Fetching Epic library natively...")
 
@@ -202,10 +215,18 @@ class EpicManager @Inject constructor(
                 return Result.failure(Exception("Not authenticated. Please log in first."))
             }
 
-            val credentials = EpicAuthManager.getStoredCredentials()
-            val accessToken = credentials.accessToken
+            val credentials = EpicAuthManager.getStoredCredentials(context)
+            val accessToken = credentials.getOrNull()?.accessToken
+            if (accessToken.isNullOrEmpty()) {
+                return Result.failure(Exception("No access token"))
+            }
+
             // TODO: We also need to abstract this out and allow for Cursor to be passed to get next page.
-            val url = "${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true"
+            var url = "${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true"
+
+            if (cursor != null) {
+                url += "&cursor=$cursor"
+            }
 
             val request = Request.Builder()
                 .url(url)
@@ -215,15 +236,14 @@ class EpicManager @Inject constructor(
                 .build()
 
             val response = httpClient.newCall(request).execute()
-
+            val body = response.body.string()
             if (!response.isSuccessful) {
                 Timber.e("Token refresh failed: ${response.code} - $body")
-                return@withContext Result.failure(Exception("HTTP ${response.code}: $body"))
+                return Result.failure(Exception("HTTP ${response.code}: $body"))
             }
-            val body = response.body?.string() ?: ""
-            val json = JSONObject(body)
 
-            parseGamesFromJson(json)
+            // Check if cursor = cursor -> return. Otherwise re-call itself with cursor.
+            parseGamesFromJson(body)
         } catch (e: Exception) {
             Timber.e(e, "Unexpected error while fetching Epic library")
             Result.failure(e)
@@ -262,8 +282,24 @@ class EpicManager @Inject constructor(
                 return Result.failure(error ?: Exception("Failed to fetch Epic library"))
             }
 
+            /*
+            "responseMetadata": {
+//                "nextCursor": "eyJvZmZzZXQiOjEwMH0=",
+//                "stateToken": "a3406703-4906-43f1-9c67-2dfd3188173d"
+//            },
+//            "records": [
+//                {
+//			"namespace": "61bc780f42f84fe29e6dfee957ab82de",
+//			"catalogItemId": "6e7e8e5c9bcc4352bec6bb2fa5134ad2",
+//			"appName": "Peony",
+//			"country": "GB",
+//			"platform": [
+				"Windows"
+			],
+             */
+
             val output = result.getOrNull() ?: ""
-            parseGamesFromJson(output)
+            parseGamesFromJson(output) // This is the wrong one, we should be bringing back the library list which is much smaller.
         } catch (e: Exception) {
             Timber.e(e, "Unexpected error while fetching Epic library")
             Result.failure(e)
