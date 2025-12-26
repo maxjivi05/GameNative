@@ -80,10 +80,6 @@ class EpicService : Service() {
             return EpicAuthManager.getStoredCredentials(context)
         }
 
-        suspend fun validateCredentials(context: Context): Result<Boolean> {
-            return EpicAuthManager.validateCredentials(context)
-        }
-
         suspend fun logout(context: Context): Result<Unit> {
             return EpicAuthManager.logout(context)
         }
