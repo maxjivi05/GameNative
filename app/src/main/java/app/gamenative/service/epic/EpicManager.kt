@@ -151,6 +151,10 @@ class EpicManager @Inject constructor(
     // https://library-service.live.use1a.on.epicgames.com/library/api/public/items
 
 
+    // Get manifest DARKSIDERS 2 EXAMPLE : https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/v2/platform/Windows/namespace/091d95ea332843498122beee1a786d71/catalogItem/8c04901974534bd0818f747952b0a19b/app/Hoki/label/Live
+
+
+
 
     /**
      * Refresh the entire library (called manually by user or after login)
