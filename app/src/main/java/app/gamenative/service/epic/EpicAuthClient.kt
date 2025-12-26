@@ -11,6 +11,9 @@ import timber.log.Timber
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
+
+// * Example Request:  https://www.epicgames.com/id/login?redirectUrl=https://www.epicgames.com/id/api/redirect%3FclientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode
+
 /**
  * Native Epic OAuth authentication client
  *

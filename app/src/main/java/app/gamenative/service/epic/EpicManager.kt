@@ -41,6 +41,117 @@ class EpicManager @Inject constructor(
     private val epicGameDao: EpicGameDao,
 ) {
 
+    // DarkSiders 2 example for grabbing the details. Requires the Namespace and the catalog ID.
+    // https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/091d95ea332843498122beee1a786d71/bulk/items?id=8c04901974534bd0818f747952b0a19b&includeDLCDetails=true&includeMainGameDetails=true
+
+
+    // WE should just query the asset list first to get a list of assets, then we can query for each game if possible.
+    //! TODO: Convert from grabbing everything, we can make our request since they're not difficult.
+    data class EpicAssetList(
+       val appName: String,
+       val labelName: String,
+       val buildVersion: String,
+       val catalogItemId: String,
+       val namespace: String,
+       val assetId: String,
+       val metadata: AssetMetadata?
+    )
+
+    data class AssetMetadata(
+        val installationPoolId: String,
+        val update_type: String
+    )
+
+    data class LibraryItem(
+        val namespace: String, // We also need this to construct the URL for grabbing the game information....
+        val catalogItemId: String?, // Catalogue Item ID is the one we use to grab the game details -> It's the most important ID.
+        val appName: String,
+        val country: String?,
+        val platform List<String>?,
+        val productId: String,
+        val sandboxName: String,
+        val sandboxType: String,
+        val recordType: String?,
+        val acquisitionDate: String?,
+        val dependencies: List<String>?
+    )
+
+    data class LibraryItemsResponse(
+        val responseMetadata: ResponseMetadata,
+        val records: List<LibraryItem>?
+    )
+
+    data class ResponseMetadata(
+        val nextCursor: String?,
+        val stateToken: String?
+    )
+
+    // Usually consists of DieselGameBox and DieselGameBoxTall that we can use. We should use DieselGameBoxtall for capsule & the other for everything else.
+    data class EpicKeyImage(
+        val type: String,
+        val url: String, // Full URL of the game art.
+        val md5: String?,
+        val width: Int?,
+        val height: Int?,
+        val size: Int?,
+        val uploadedDate: String?, // "2019-12-19T21:54:10.003Z"
+    )
+
+    data class EpicCategory(
+        val path: String
+    )
+
+    data class EpicCustomAttribute(
+        val type: String,
+        val value: String
+    )
+    data class EpicReleaseInfo(
+        val id: String,
+        val appId: String,
+        val platform: List<String>?,
+        val dateAdded: String?,
+        val releaseNote: String?,
+        val versionTitle: String?
+    )
+
+    data class EpicMainGameItem(
+        val id: String,
+        val namespace: String
+    )
+
+    data class GameInfoResponse(
+        val id: String,
+        val title: String,
+        val description: String,
+        val keyImages: List<EpicKeyImage>,
+        val categories: List<EpicCategory>,
+        val namespace: String,
+        val status: String?,
+        val creationDate: String?, // "2025-03-04T08:39:07.841Z",
+        val lastModifiedDate: String?, //"2025-03-06T07:37:16.597Z",
+        val customAttributes: EpicCustomAttribute?,
+        val entitlementName: String?,
+        val entitlementType: String?,
+        val itemType: String?,
+        val releaseInfo: EpicReleaseInfo,
+        val developer: String,
+        val developerId: String?,
+        val eulaIds: List<String>?,
+        val endOfSupport: Boolean?,
+        val mainGameItemList: List<String>?,
+        val ageGatings: Map<String, Int>?,
+        val applicationId: String?,
+        val baseAppName: String?,
+        val baseProductId: String?,
+        val mainGameItem: EpicMainGameItem?
+    )
+
+
+    // GET LIBRARY ITEMS
+    // https://library-service.live.use1a.on.epicgames.com/library/api/public/items
+
+
+
     /**
      * Refresh the entire library (called manually by user or after login)
      * Fetches all games from Epic via Legendary and updates the database
