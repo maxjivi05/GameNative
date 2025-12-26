@@ -3,6 +3,7 @@ package app.gamenative.service.epic
 import android.content.Context
 import app.gamenative.data.EpicGame
 import app.gamenative.db.dao.EpicGameDao
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -80,6 +81,14 @@ class EpicManager @Inject constructor(
         val recordType: String?,
         val acquisitionDate: String?,
         val dependencies: List<String>?,
+    )
+
+    data class ParsedLibraryItem(
+        val appName: String,
+        val namespace: String,
+        val catalogItemId: String,
+        val sandboxType: String,
+        val country: String?,
     )
 
     data class LibraryItemsResponse(
@@ -207,47 +216,289 @@ class EpicManager @Inject constructor(
     // Country is the confusing one, Looks like I should parse this too ????
 
     private suspend fun listGamesKotlin(context: Context, cursor: String? = null): Result<List<EpicGame>> {
-        return try {
-            Timber.tag("Epic").d("Fetching Epic library natively...")
+        /**
+         * Fetch user's Epic library
+         *
+         * Calls: GET https://library-service.live.use1a.on.epicgames.com/library/api/public/items?includeMetadata=true
+         *
+         * Returns list of library items with app names, namespaces, and catalog IDs
+         */
+        suspend fun fetchLibrary(context: Context): Result<List<EpicGame>> = withContext(Dispatchers.IO) {
+            try {
+                // Get Credentials and restore them
+                val credentials = EpicAuthManager.getStoredCredentials(context)
+                if (credentials.isFailure) {
+                    return@withContext Result.failure(credentials.exceptionOrNull() ?: Exception("No credentials"))
+                }
 
-            if (!EpicAuthManager.hasStoredCredentials(context)) {
-                Timber.e("Cannot list games: not authenticated")
-                return Result.failure(Exception("Not authenticated. Please log in first."))
+                val accessToken = credentials.getOrNull()?.accessToken
+                if (accessToken.isNullOrEmpty()) {
+                    return@withContext Result.failure(Exception("No access token"))
+                }
+
+                val games = mutableListOf<EpicGame>()
+                var cursor: String? = null
+
+                // Fetch all pages of library items
+                do {
+                    val url = buildString {
+                        append("https://${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true")
+                        if (cursor != null) {
+                            append("&cursor=$cursor")
+                        }
+                    }
+
+                    val request = Request.Builder()
+                        .url(url)
+                        .header("Authorization", "Bearer $accessToken")
+                        .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
+                        .get()
+                        .build()
+
+                    Timber.d("Fetching Epic library page: cursor=$cursor")
+
+                    val response = httpClient.newCall(request).execute()
+
+                    if (!response.isSuccessful) {
+                        val error = response.body?.string() ?: "Unknown error"
+                        Timber.e("Library fetch failed: ${response.code} - $error")
+                        return@withContext Result.failure(Exception("HTTP ${response.code}: $error"))
+                    }
+
+                    val body = response.body?.string()
+                    if (body.isNullOrEmpty()) {
+                        Timber.e("Empty response body from library API")
+                        return@withContext Result.failure(Exception("Empty response"))
+                    }
+
+                    val json = JSONObject(body)
+                    val records = json.optJSONArray("records") ?: JSONArray()
+
+                    Timber.d("Received ${records.length()} library items in this page")
+
+                    // Process records and fetch game info for each
+                    for (i in 0 until records.length()) {
+                        val record = records.getJSONObject(i)
+
+                        // Skip items without app name
+                        if (!record.has("appName")) {
+                            continue
+                        }
+
+                        val appName = record.getString("appName")
+                        val namespace = record.getString("namespace")
+                        val catalogItemId = record.getString("catalogItemId")
+                        val sandboxType = record.optString("sandboxType", "")
+
+                        // Skip UE assets, private sandboxes, and broken entries
+                        if (namespace == "ue" || sandboxType == "PRIVATE" || appName == "1") {
+                            Timber.d("Skipping $appName (namespace=$namespace, sandbox=$sandboxType)")
+                            continue
+                        }
+
+                        // Fetch detailed game info from catalog
+                        val gameInfo = fetchGameInfo(accessToken, namespace, catalogItemId, appName)
+                        if (gameInfo != null) {
+
+                            // We should actually just batch them like GOG and just get them updating rather than a huge batch
+                            games.add(gameInfo as EpicGame)
+                        }
+                    }
+
+                    // Get cursor for next page
+                    val metadata = json.optJSONObject("responseMetadata")
+                    cursor = metadata?.optString("nextCursor")?.takeIf { it.isNotEmpty() }
+                } while (cursor != null)
+
+                Timber.i("Successfully fetched ${games.size} games from Epic library")
+                Result.success(games)
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to fetch Epic library")
+                Result.failure(e)
             }
+        }
+    }
 
-            val credentials = EpicAuthManager.getStoredCredentials(context)
-            val accessToken = credentials.getOrNull()?.accessToken
-            if (accessToken.isNullOrEmpty()) {
-                return Result.failure(Exception("No access token"))
-            }
 
-            // TODO: We also need to abstract this out and allow for Cursor to be passed to get next page.
-            var url = "${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true"
-
-            if (cursor != null) {
-                url += "&cursor=$cursor"
-            }
+    private suspend fun fetchGameInfo(
+        accessToken: String,
+        namespace: String,
+        catalogItemId: String,
+        libraryAppName: String
+    ): EpicGame? = withContext(Dispatchers.IO) {
+        try {
+            val url = "${EpicConstants.EPIC_CATALOG_API_URL}/shared/namespace/$namespace/bulk/items" +
+                    "?id=$catalogItemId&includeDLCDetails=true&includeMainGameDetails=true" +
+                    "&country=US&locale=en-US"
 
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $accessToken")
-                .header("User-Agent", EpicConstants.USER_AGENT)
+                .header("User-Agent", USER_AGENT)
                 .get()
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            val body = response.body.string()
+
             if (!response.isSuccessful) {
-                Timber.e("Token refresh failed: ${response.code} - $body")
-                return Result.failure(Exception("HTTP ${response.code}: $body"))
+                Timber.w("Failed to fetch game info for $catalogItemId: ${response.code}")
+                return@withContext null
             }
 
-            // Check if cursor = cursor -> return. Otherwise re-call itself with cursor.
-            parseGamesFromJson(body)
+            val body = response.body?.string()
+            if (body.isNullOrEmpty()) {
+                return@withContext null
+            }
+
+            val json = JSONObject(body)
+            val gameData = json.optJSONObject(catalogItemId)
+
+            if (gameData != null) {
+                parseGameFromCatalog(gameData, libraryAppName)
+            } else {
+                null
+            }
+
         } catch (e: Exception) {
-            Timber.e(e, "Unexpected error while fetching Epic library")
-            Result.failure(e)
+            Timber.w(e, "Error fetching game info for $catalogItemId")
+            null
         }
+    }
+
+    /**
+     * Parse Epic catalog JSON into EpicGame object
+     *
+     * Catalog structure:
+     * {
+     *   "id": "catalogItemId",
+     *   "namespace": "namespace",
+     *   "title": "Game Title",
+     *   "description": "Description...",
+     *   "keyImages": [...],
+     *   "categories": [...],
+     *   "developer": "Developer",
+     *   "developerDisplayName": "Developer Display Name",
+     *   "publisher": "Publisher",
+     *   "publisherDisplayName": "Publisher Display Name",
+     *   "releaseInfo": [...],
+     *   "mainGameItem": { ... },  // Present for DLC
+     *   ...
+     * }
+     */
+    private fun parseGameFromCatalog(data: JSONObject, libraryAppName: String): EpicGame {
+        val catalogItemId = data.getString("id")
+        val namespace = data.getString("namespace")
+        val title = data.getString("title")
+        val description = data.optString("description", "")
+
+        // Use the appName from library API (passed as parameter)
+        // This is the real appName needed for downloads, not the catalog ID
+        val appName = libraryAppName
+
+        // Extract images - map to EpicGame's art fields
+        val keyImages = data.optJSONArray("keyImages")
+        var artCover = ""      // DieselGameBoxTall - Tall cover art
+        var artSquare = ""     // DieselGameBox - Square box art
+        var artLogo = ""       // DieselGameBoxLogo - Logo image
+        var artPortrait = ""   // DieselStoreFrontWide - Wide banner
+
+        if (keyImages != null) {
+            for (i in 0 until keyImages.length()) {
+                val img = keyImages.getJSONObject(i)
+                val imgType = img.optString("type")
+                val imgUrl = img.optString("url", "")
+
+                when (imgType) {
+                    "DieselGameBoxTall" -> artCover = imgUrl
+                    "DieselGameBox" -> artSquare = imgUrl
+                    "DieselGameBoxLogo" -> artLogo = imgUrl
+                    "DieselStoreFrontWide" -> artPortrait = imgUrl
+                    "Thumbnail" -> if (artSquare.isEmpty()) artSquare = imgUrl
+                }
+            }
+        }
+
+        // Check if this is DLC
+        val isDLC = data.has("mainGameItem")
+        val baseGameAppName = if (isDLC) {
+            data.optJSONObject("mainGameItem")?.optString("id", "") ?: ""
+        } else {
+            ""
+        }
+
+        // Get developer/publisher
+        val developer = data.optString("developerDisplayName", data.optString("developer", ""))
+        val publisher = data.optString("publisherDisplayName", data.optString("publisher", ""))
+
+        // Get categories to check for mods
+        val categories = data.optJSONArray("categories")
+        var isMod = false
+        if (categories != null) {
+            for (i in 0 until categories.length()) {
+                val cat = categories.getJSONObject(i)
+                if (cat.optString("path") == "mods") {
+                    isMod = true
+                    break
+                }
+            }
+        }
+
+        // Release date - convert to string format
+        val releaseInfo = data.optJSONArray("releaseInfo")
+        var releaseDate = ""
+        if (releaseInfo != null && releaseInfo.length() > 0) {
+            val release = releaseInfo.getJSONObject(0)
+            releaseDate = release.optString("dateAdded", "")
+        }
+
+        // Parse genres/tags from categories
+        val genresList = mutableListOf<String>()
+        val tagsList = mutableListOf<String>()
+        if (categories != null) {
+            for (i in 0 until categories.length()) {
+                val cat = categories.getJSONObject(i)
+                val path = cat.optString("path", "")
+                if (path.startsWith("games/")) {
+                    genresList.add(path.removePrefix("games/"))
+                } else if (path.isNotEmpty() && path != "mods") {
+                    tagsList.add(path)
+                }
+            }
+        }
+
+        return EpicGame(
+            id = catalogItemId,
+            appName = appName,
+            title = title,
+            namespace = namespace,
+            developer = developer,
+            publisher = publisher,
+            description = description,
+            artCover = artCover,
+            artSquare = artSquare,
+            artLogo = artLogo,
+            artPortrait = artPortrait,
+            isDLC = isDLC,
+            baseGameAppName = baseGameAppName,
+            releaseDate = releaseDate,
+            genres = genresList,
+            tags = tagsList,
+            isInstalled = false, // Will be updated from local database
+            installPath = "",
+            platform = "Windows",
+            version = "",
+            executable = "",
+            installSize = 0,
+            downloadSize = 0,
+            canRunOffline = false, // Unknown from catalog API, will need manifest
+            requiresOT = false,
+            cloudSaveEnabled = false,
+            saveFolder = "",
+            thirdPartyManagedApp = "",
+            isEAManaged = false,
+            lastPlayed = 0,
+            playTime = 0
+        )
     }
 
     /**
@@ -257,13 +508,6 @@ class EpicManager @Inject constructor(
      * Uses: legendary list --third-party --json
      */
     private suspend fun listGames(context: Context): Result<List<EpicGame>> {
-        // TODO: Convert this into getting from: https://library-service.live.use1a.on.epicgames.com/library/api/public/items
-        // TODO: remember to use the cursor logic: 		"nextCursor": "eyJvZmZzZXQiOjEwMH0="."stateToken": "a3406703-4906-43f1-9c67-2dfd3188173d" (so we add cursor as a query param to get the next load.)
-        //        while cursor := j['responseMetadata'].get('nextCursor', None):
-        // r = self.session.get(f'https://{self._library_host}/library/api/public/items',
-        //                      params=dict(includeMetadata=include_metadata, cursor=cursor),
-        //                      timeout=self.request_timeout)
-        // Let's create another listGames function and compare them.
         return try {
             Timber.d("Fetching Epic library via Legendary...")
 
@@ -281,22 +525,6 @@ class EpicManager @Inject constructor(
                 Timber.e(error, "Failed to fetch Epic library: ${error?.message}")
                 return Result.failure(error ?: Exception("Failed to fetch Epic library"))
             }
-
-            /*
-            "responseMetadata": {
-//                "nextCursor": "eyJvZmZzZXQiOjEwMH0=",
-//                "stateToken": "a3406703-4906-43f1-9c67-2dfd3188173d"
-//            },
-//            "records": [
-//                {
-//			"namespace": "61bc780f42f84fe29e6dfee957ab82de",
-//			"catalogItemId": "6e7e8e5c9bcc4352bec6bb2fa5134ad2",
-//			"appName": "Peony",
-//			"country": "GB",
-//			"platform": [
-				"Windows"
-			],
-             */
 
             val output = result.getOrNull() ?: ""
             parseGamesFromJson(output) // This is the wrong one, we should be bringing back the library list which is much smaller.
