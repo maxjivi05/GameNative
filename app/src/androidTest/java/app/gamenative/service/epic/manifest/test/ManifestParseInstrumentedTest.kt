@@ -43,13 +43,13 @@ class ManifestParseInstrumentedTest {
         println("  Checking appName...")
         assertEquals("App name should match", "EpicGamesLauncher", manifest.meta?.appName)
         println("    ✅ appName matches")
-        
+
         println("  Checking buildVersion...")
         assertEquals("Build version should match",
             "2.9.2-2874913+++Portal+Release-Live-Windows",
             manifest.meta?.buildVersion)
         println("    ✅ buildVersion matches")
-        
+
         println("  Checking manifest version...")
         assertEquals("Manifest version should be 12", 12, manifest.version)
         println("    ✅ version matches")
@@ -61,7 +61,7 @@ class ManifestParseInstrumentedTest {
         println("  Checking chunk count...")
         assertEquals("Should have 246 chunks", 246, chunkCount)
         println("    ✅ chunk count matches")
-        
+
         println("  Checking file count...")
         assertEquals("Should have 3430 files", 3430, fileCount)
         println("    ✅ file count matches")
@@ -73,7 +73,7 @@ class ManifestParseInstrumentedTest {
         println("  Checking download size...")
         assertEquals("Download size should match", 107838099L, downloadSize)
         println("    ✅ download size matches")
-        
+
         println("  Checking installed size...")
         assertEquals("Installed size should match", 239239382L, installedSize)
         println("    ✅ installed size matches")
@@ -128,18 +128,18 @@ class ManifestParseInstrumentedTest {
         // Verify hash (SHA1)
         val expectedHash = "98be17e1d324790a5b206e1ea1cc4e64fbe21240"
         val actualHash = firstFile?.hash?.joinToString("") { "%02x".format(it) }
-        
+
         // Log for comparison with Python
         println("🔍 Kotlin vs Python Hash Comparison:")
         println("  Expected (Python): $expectedHash")
         println("  Actual (Kotlin):   $actualHash")
-        
+
         if (expectedHash == actualHash) {
             println("  ✅ MATCH - Kotlin implementation matches Python!")
         } else {
             println("  ❌ MISMATCH - Implementations differ!")
         }
-        
+
         assertEquals("File hash should match", expectedHash, actualHash)
 
         println("✅ File details test passed!")

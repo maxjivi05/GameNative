@@ -31,12 +31,12 @@ class ManifestPythonComparisonTest {
     private fun runPythonParser(manifestFile: File): JSONObject? {
         try {
             val pythonScript = File(getContext().filesDir, "manifest_test_python.py")
-            
+
             // Copy Python script from assets to file system
             val scriptStream = InstrumentationRegistry.getInstrumentation().context.assets.open("manifest_test_python.py")
             pythonScript.parentFile?.mkdirs()
             pythonScript.writeBytes(scriptStream.readBytes())
-            
+
             val process = ProcessBuilder(
                 "python3",
                 pythonScript.absolutePath,
@@ -74,7 +74,7 @@ class ManifestPythonComparisonTest {
 
         // Parse with Python (may not be available in all test environments)
         val pythonJson = runPythonParser(manifestFile)
-        
+
         if (pythonJson == null) {
             Timber.w("Python parser not available, skipping comparison")
             return
@@ -99,14 +99,14 @@ class ManifestPythonComparisonTest {
 
             val kotlinFilename = kotlinFile.getString("filename")
             val pythonFilename = pythonFile.getString("filename")
-            
+
             if (kotlinFilename != pythonFilename) {
                 differences.add("File $i: filename differs - Kotlin: '$kotlinFilename', Python: '$pythonFilename'")
             }
 
             val kotlinHash = kotlinFile.getString("hash")
             val pythonHash = pythonFile.getString("hash")
-            
+
             if (kotlinHash != pythonHash) {
                 differences.add("File $i ($kotlinFilename): hash differs - Kotlin: '$kotlinHash', Python: '$pythonHash'")
             }
@@ -128,7 +128,7 @@ class ManifestPythonComparisonTest {
         try {
             val kotlinValue = kotlinObj.get(field)
             val pythonValue = pythonObj.get(field)
-            
+
             if (kotlinValue != pythonValue) {
                 differences.add("Field '$field': Kotlin='$kotlinValue', Python='$pythonValue'")
             }

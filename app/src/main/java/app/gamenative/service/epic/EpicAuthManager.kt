@@ -145,7 +145,6 @@ object EpicAuthManager {
         }
     }
 
-
     suspend fun logout(context: Context): Result<Unit> {
         return try {
             val credentialsFile = File(getCredentialsFilePath(context))

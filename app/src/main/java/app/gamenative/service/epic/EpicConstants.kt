@@ -37,7 +37,7 @@ object EpicConstants {
     // Epic GraphQL API endpoints
     const val EPIC_GRAPHQL_URL = "https://launcher.store.epicgames.com/graphql"
     const val EPIC_STORE_API_URL = "https://store-content.ak.epicgames.com/api"
-
+    const val EPIC_LIBRARY_API_URL = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items"
     // Epic CDN for game assets
     const val EPIC_CATALOG_API_URL = "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api"
 

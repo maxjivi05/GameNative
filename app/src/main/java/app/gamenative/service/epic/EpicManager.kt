@@ -3,14 +3,16 @@ package app.gamenative.service.epic
 import android.content.Context
 import app.gamenative.data.EpicGame
 import app.gamenative.db.dao.EpicGameDao
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
-import javax.inject.Inject
-import javax.inject.Singleton
-
 
 /**
  *
@@ -21,7 +23,6 @@ import javax.inject.Singleton
  * | Launch | `legendary launch <APPNAME> --offline --skip-version-check` | Launch output |
  * TODO: We should see if we need to put any disclaimers around online games not being supported and THEY BETTER NOT TRY FORTNITE.
  */
-
 
 /**
  * EpicManager handles Epic Games library management
@@ -44,22 +45,21 @@ class EpicManager @Inject constructor(
     // DarkSiders 2 example for grabbing the details. Requires the Namespace and the catalog ID.
     // https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/091d95ea332843498122beee1a786d71/bulk/items?id=8c04901974534bd0818f747952b0a19b&includeDLCDetails=true&includeMainGameDetails=true
 
-
     // WE should just query the asset list first to get a list of assets, then we can query for each game if possible.
-    //! TODO: Convert from grabbing everything, we can make our request since they're not difficult.
+    // ! TODO: Convert from grabbing everything, we can make our request since they're not difficult.
     data class EpicAssetList(
-       val appName: String,
-       val labelName: String,
-       val buildVersion: String,
-       val catalogItemId: String,
-       val namespace: String,
-       val assetId: String,
-       val metadata: AssetMetadata?
+        val appName: String,
+        val labelName: String,
+        val buildVersion: String,
+        val catalogItemId: String,
+        val namespace: String,
+        val assetId: String,
+        val metadata: AssetMetadata?,
     )
 
     data class AssetMetadata(
         val installationPoolId: String,
-        val update_type: String
+        val update_type: String,
     )
 
     data class LibraryItem(
@@ -73,17 +73,17 @@ class EpicManager @Inject constructor(
         val sandboxType: String,
         val recordType: String?,
         val acquisitionDate: String?,
-        val dependencies: List<String>?
+        val dependencies: List<String>?,
     )
 
     data class LibraryItemsResponse(
         val responseMetadata: ResponseMetadata,
-        val records: List<LibraryItem>?
+        val records: List<LibraryItem>?,
     )
 
     data class ResponseMetadata(
         val nextCursor: String?,
-        val stateToken: String?
+        val stateToken: String?,
     )
 
     // Usually consists of DieselGameBox and DieselGameBoxTall that we can use. We should use DieselGameBoxtall for capsule & the other for everything else.
@@ -98,12 +98,12 @@ class EpicManager @Inject constructor(
     )
 
     data class EpicCategory(
-        val path: String
+        val path: String,
     )
 
     data class EpicCustomAttribute(
         val type: String,
-        val value: String
+        val value: String,
     )
     data class EpicReleaseInfo(
         val id: String,
@@ -111,12 +111,12 @@ class EpicManager @Inject constructor(
         val platform: List<String>?,
         val dateAdded: String?,
         val releaseNote: String?,
-        val versionTitle: String?
+        val versionTitle: String?,
     )
 
     data class EpicMainGameItem(
         val id: String,
-        val namespace: String
+        val namespace: String,
     )
 
     data class GameInfoResponse(
@@ -128,7 +128,7 @@ class EpicManager @Inject constructor(
         val namespace: String,
         val status: String?,
         val creationDate: String?, // "2025-03-04T08:39:07.841Z",
-        val lastModifiedDate: String?, //"2025-03-06T07:37:16.597Z",
+        val lastModifiedDate: String?, // "2025-03-06T07:37:16.597Z",
         val customAttributes: EpicCustomAttribute?,
         val entitlementName: String?,
         val entitlementType: String?,
@@ -143,18 +143,13 @@ class EpicManager @Inject constructor(
         val applicationId: String?,
         val baseAppName: String?,
         val baseProductId: String?,
-        val mainGameItem: EpicMainGameItem?
+        val mainGameItem: EpicMainGameItem?,
     )
-
 
     // GET LIBRARY ITEMS
     // https://library-service.live.use1a.on.epicgames.com/library/api/public/items
 
-
     // Get manifest DARKSIDERS 2 EXAMPLE : https://launcher-public-service-prod06.ol.epicgames.com/launcher/api/public/assets/v2/platform/Windows/namespace/091d95ea332843498122beee1a786d71/catalogItem/8c04901974534bd0818f747952b0a19b/app/Hoki/label/Live
-
-
-
 
     /**
      * Refresh the entire library (called manually by user or after login)
@@ -198,6 +193,43 @@ class EpicManager @Inject constructor(
         }
     }
 
+    private suspend fun listGamesKotlin(context: Context): Result<List<EpicGame>> {
+        return try {
+            Timber.tag("Epic").d("Fetching Epic library natively...")
+
+            if (!EpicAuthManager.hasStoredCredentials(context)) {
+                Timber.e("Cannot list games: not authenticated")
+                return Result.failure(Exception("Not authenticated. Please log in first."))
+            }
+
+            val credentials = EpicAuthManager.getStoredCredentials()
+            val accessToken = credentials.accessToken
+            // TODO: We also need to abstract this out and allow for Cursor to be passed to get next page.
+            val url = "${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true"
+
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $accessToken")
+                .header("User-Agent", EpicConstants.USER_AGENT)
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                Timber.e("Token refresh failed: ${response.code} - $body")
+                return@withContext Result.failure(Exception("HTTP ${response.code}: $body"))
+            }
+            val body = response.body?.string() ?: ""
+            val json = JSONObject(body)
+
+            parseGamesFromJson(json)
+        } catch (e: Exception) {
+            Timber.e(e, "Unexpected error while fetching Epic library")
+            Result.failure(e)
+        }
+    }
+
     /**
      * Fetch the user's Epic library (list of owned games)
      * Returns a list of EpicGame objects with basic metadata
@@ -205,6 +237,13 @@ class EpicManager @Inject constructor(
      * Uses: legendary list --third-party --json
      */
     private suspend fun listGames(context: Context): Result<List<EpicGame>> {
+        // TODO: Convert this into getting from: https://library-service.live.use1a.on.epicgames.com/library/api/public/items
+        // TODO: remember to use the cursor logic: 		"nextCursor": "eyJvZmZzZXQiOjEwMH0="."stateToken": "a3406703-4906-43f1-9c67-2dfd3188173d" (so we add cursor as a query param to get the next load.)
+        //        while cursor := j['responseMetadata'].get('nextCursor', None):
+        // r = self.session.get(f'https://{self._library_host}/library/api/public/items',
+        //                      params=dict(includeMetadata=include_metadata, cursor=cursor),
+        //                      timeout=self.request_timeout)
+        // Let's create another listGames function and compare them.
         return try {
             Timber.d("Fetching Epic library via Legendary...")
 
