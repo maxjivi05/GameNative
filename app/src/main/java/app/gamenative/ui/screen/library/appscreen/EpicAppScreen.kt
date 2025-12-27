@@ -460,7 +460,7 @@ class EpicAppScreen : BaseAppScreen() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 // Delegate to EpicService which calls EpicManager.deleteGame
-                val result = EpicService.deleteGame(context, libraryItem)
+                val result = EpicService.deleteGame(context, libraryItem.appId)
 
                 if (result.isSuccess) {
                     Timber.i("Epic game uninstalled successfully: ${libraryItem.appId}")

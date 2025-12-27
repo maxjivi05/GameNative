@@ -115,6 +115,44 @@ class EpicService : Service() {
             return getInstance()?.activeDownloads?.get(appName)
         }
 
+        suspend fun deleteGame(context: Context, appName: String): Result<Unit> {
+            val instance = getInstance()
+            if (instance == null) {
+                return Result.failure(Exception("Service not available"))
+            }
+
+            return try {
+                // Get the game to find its install path
+                val game = instance.epicManager.getGameByAppName(appName)
+                if (game == null) {
+                    return Result.failure(Exception("Game not found: $appName"))
+                }
+
+                // Delete the installation folder if it exists
+                if (game.isInstalled && game.installPath.isNotEmpty()) {
+                    val installDir = File(game.installPath)
+                    if (installDir.exists()) {
+                        Timber.tag("Epic").i("Deleting installation folder: ${game.installPath}")
+                        val deleted = installDir.deleteRecursively()
+                        if (deleted) {
+                            Timber.tag("Epic").i("Successfully deleted installation folder")
+                        } else {
+                            Timber.tag("Epic").w("Failed to delete some files in installation folder")
+                        }
+                    }
+                }
+
+                // Uninstall from database (keeps the entry but marks as not installed)
+                instance.epicManager.uninstall(game.id)
+
+                Timber.tag("Epic").i("Game uninstalled: $appName")
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Timber.tag("Epic").e(e, "Failed to uninstall game: $appName")
+                Result.failure(e)
+            }
+        }
+
         fun cleanupDownload(appName: String) {
             getInstance()?.activeDownloads?.remove(appName)
         }
@@ -289,13 +327,23 @@ class EpicService : Service() {
                         app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true),
                     )
 
-                    // Download the game
-                    val result = instance.epicDownloadManager.downloadGame(
+                    // Download the game using Python/Legendary (works around Epic's TLS fingerprinting)
+                    // Native Kotlin download blocked by Epic CDN due to Android TLS fingerprint detection
+                    val result = instance.pythonDownloadManager.downloadGame(
                         context = context,
                         game = game,
                         installPath = installPath,
                         downloadInfo = downloadInfo,
                     )
+
+                    // val result = instance.epicDownloadManager.downloadGame(
+                    //     context = context,
+                    //     game = game,
+                    //     installPath = installPath,
+                    //     downloadInfo = downloadInfo,
+                    // )
+
+                    Timber.tag("Epic").d("Download result: ${if (result.isSuccess) "SUCCESS" else "FAILURE: ${result.exceptionOrNull()?.message}"}")
 
                     if (result.isSuccess) {
                         Timber.tag("Epic").i("Download completed successfully for ${game.title}")
@@ -353,11 +401,6 @@ class EpicService : Service() {
                 Result.failure(Exception("Game not found: $appName"))
             }
         }
-
-        suspend fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
-            // TODO: Implement when EpicManager is ready
-            return Result.failure(Exception("Not implemented"))
-        }
     }
 
     private lateinit var notificationHelper: NotificationHelper
@@ -367,6 +410,9 @@ class EpicService : Service() {
 
     @Inject
     lateinit var epicDownloadManager: EpicDownloadManager
+
+    @Inject
+    lateinit var pythonDownloadManager: PythonDownloadManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 

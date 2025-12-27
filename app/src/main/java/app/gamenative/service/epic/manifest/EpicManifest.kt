@@ -348,7 +348,10 @@ data class ChunkInfo(
      */
     fun getPath(chunkDir: String = getChunkDir(manifestVersion)): String {
         val guidHex = guid.joinToString("") { "%08X".format(it) }
-        return "$chunkDir/%02d/%016X_$guidHex.chunk".format(groupNum, hash.toLong())
+        // Format: ChunksV4/{groupNum:02d}/{hash:016X}_{guid}.chunk
+        // Convert ULong hash to 16-character uppercase hex string
+        val hashHex = hash.toString(16).uppercase().padStart(16, '0')
+        return String.format("$chunkDir/%02d/%s_%s.chunk", groupNum, hashHex, guidHex)
     }
 
     companion object {

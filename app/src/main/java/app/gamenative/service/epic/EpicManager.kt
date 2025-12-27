@@ -614,6 +614,12 @@ class EpicManager @Inject constructor(
         }
     }
 
+    suspend fun uninstall(appId: String) {
+        withContext(Dispatchers.IO) {
+            epicGameDao.uninstall(appId)
+        }
+    }
+
 
     /**
      * Start background sync (called after login)
@@ -648,124 +654,198 @@ class EpicManager @Inject constructor(
         }
     }
 
+    data class ManifestResult(
+        val manifestBytes: ByteArray,
+        val cdnUrls: List<CdnUrl>
+    )
+
+    // authQueryParams:  e.g., "?f_token=..." or "?ak_token=..."
+    data class CdnUrl(
+        val baseUrl: String,
+        val authQueryParams: String
+    )
+
+    /**
+     * Fetch manifest binary data from Epic API and CDN
+     *
+     * Returns the raw manifest bytes and CDN base URLs from the API response
+     */
+    suspend fun fetchManifestFromEpic(
+        context: Context,
+        namespace: String,
+        catalogItemId: String,
+        appName: String
+    ): Result<ManifestResult> = withContext(Dispatchers.IO) {
+        try {
+            // Get credentials
+            val credentials = EpicAuthManager.getStoredCredentials(context)
+            if (credentials.isFailure) {
+                return@withContext Result.failure(credentials.exceptionOrNull() ?: Exception("No credentials"))
+            }
+
+            val accessToken = credentials.getOrNull()?.accessToken
+            if (accessToken.isNullOrEmpty()) {
+                return@withContext Result.failure(Exception("No access token"))
+            }
+
+            // Fetch manifest URL from Epic API
+            val manifestUrl = "${EpicConstants.EPIC_LAUNCHER_API_URL}/launcher/api/public/assets/v2/platform" +
+                    "/Windows/namespace/$namespace/catalogItem/$catalogItemId/app" +
+                    "/$appName/label/Live"
+
+            Timber.tag("Epic").d("Fetching manifest metadata from: $manifestUrl")
+
+            val request = Request.Builder()
+                .url(manifestUrl)
+                .header("Authorization", "Bearer $accessToken")
+                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(Exception("Manifest API request failed: ${response.code}"))
+            }
+
+            val body = response.body?.string()
+            if (body.isNullOrEmpty()) {
+                return@withContext Result.failure(Exception("Empty manifest API response"))
+            }
+
+            val manifestJson = JSONObject(body)
+            val elements = manifestJson.optJSONArray("elements")
+
+            if (elements == null || elements.length() == 0) {
+                return@withContext Result.failure(Exception("No elements in manifest API response"))
+            }
+
+            val element = elements.getJSONObject(0)
+            val manifests = element.optJSONArray("manifests")
+
+            if (manifests == null || manifests.length() == 0) {
+                return@withContext Result.failure(Exception("No manifests in API response"))
+            }
+
+            // Extract CDN base URLs from manifest URIs with their auth tokens
+            // Each manifest entry represents the same content on a different CDN
+            val cdnUrls = mutableListOf<CdnUrl>()
+            for (i in 0 until manifests.length()) {
+                val manifest = manifests.getJSONObject(i)
+                val uri = manifest.getString("uri")
+
+                // Extract base URL (e.g., "https://fastly-download.epicgames.com")
+                val baseUrl = uri.substringBefore("/Builds")
+                if (baseUrl.isEmpty() || !baseUrl.startsWith("http")) {
+                    continue
+                }
+
+                // Extract authentication query parameters for this CDN
+                val queryParams = manifest.optJSONArray("queryParams")
+                val authParams = if (queryParams != null && queryParams.length() > 0) {
+                    val params = StringBuilder("?")
+                    for (j in 0 until queryParams.length()) {
+                        val param = queryParams.getJSONObject(j)
+                        val name = param.getString("name")
+                        val value = param.getString("value")
+                        if (j > 0) params.append("&")
+                        params.append("$name=$value")
+                    }
+                    params.toString()
+                } else {
+                    ""
+                }
+
+                cdnUrls.add(CdnUrl(baseUrl, authParams))
+            }
+
+            // Error if no CDN URLs could be extracted
+            if (cdnUrls.isEmpty()) {
+                return@withContext Result.failure(Exception("No CDN URLs found in manifest API response"))
+            }
+
+            Timber.tag("Epic").d("Found ${cdnUrls.size} CDN mirrors")
+
+            // Use the first manifest to download the manifest file
+            val manifestObj = manifests.getJSONObject(0)
+            var manifestUri = manifestObj.getString("uri")
+
+            // Append query parameters (CDN authentication tokens) for manifest download
+            val manifestQueryParams = manifestObj.optJSONArray("queryParams")
+            if (manifestQueryParams != null && manifestQueryParams.length() > 0) {
+                val params = StringBuilder()
+                for (i in 0 until manifestQueryParams.length()) {
+                    val param = manifestQueryParams.getJSONObject(i)
+                    val name = param.getString("name")
+                    val value = param.getString("value")
+                    if (i == 0) {
+                        params.append("?")
+                    } else {
+                        params.append("&")
+                    }
+                    params.append("$name=$value")
+                }
+                manifestUri += params.toString()
+            }
+
+            Timber.tag("Epic").d("Downloading manifest binary from: $manifestUri")
+
+            // Manifest downloads from CDN don't need/accept Epic auth tokens
+            val manifestRequest = Request.Builder()
+                .url(manifestUri)
+                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
+                .get()
+                .build()
+
+            val manifestResponse = cdnClient.newCall(manifestRequest).execute()
+
+            if (!manifestResponse.isSuccessful) {
+                return@withContext Result.failure(Exception("Failed to download manifest binary: ${manifestResponse.code}"))
+            }
+
+            val manifestBytes = manifestResponse.body?.bytes()
+            if (manifestBytes == null) {
+                return@withContext Result.failure(Exception("Empty manifest bytes from CDN"))
+            }
+
+            Timber.tag("Epic").d("Manifest fetched with ${cdnUrls.size} CDN URLs")
+            Result.success(ManifestResult(manifestBytes, cdnUrls))
+        } catch (e: Exception) {
+            Timber.tag("Epic").e(e, "Exception fetching manifest")
+            Result.failure(e)
+        }
+    }
+
     /**
      * Fetch install size for a game by downloading its manifest
      * Manifest is small (~500KB-1MB) and contains all file metadata
      * Returns size in bytes, or 0 if failed
-     *
-     * This function implements both Python (via legendary) and Kotlin parsing
-     * and compares the results to validate the Kotlin implementation
      */
     suspend fun fetchInstallSize(context: Context, appName: String): Long = withContext(Dispatchers.IO) {
-            try {
-                var installSize = 0L
-                // Get the game info to get namespace and catalogItemId
-                val game = getGameByAppName(appName)
-                if (game == null) {
-                    Timber.tag("Epic").w("Game not found in database: $appName")
-                } else {
-                    // Get credentials
-                    val credentials = EpicAuthManager.getStoredCredentials(context)
-                    if (credentials.isFailure) {
-                        Timber.tag("Epic").w("No credentials for Kotlin manifest fetch")
-                    } else {
-                        val accessToken = credentials.getOrNull()?.accessToken
-                        if (accessToken.isNullOrEmpty()) {
-                            Timber.tag("Epic").w("No access token for Kotlin manifest fetch")
-                        } else {
-                            // Fetch manifest URL from Epic API
-                            val manifestUrl = "${EpicConstants.EPIC_LAUNCHER_API_URL}/launcher/api/public/assets/v2/platform" +
-                                    "/Windows/namespace/${game.namespace}/catalogItem/${game.id}/app" +
-                                    "/${game.appName}/label/Live"
+        try {
+            // Get the game info to get namespace and catalogItemId
+            val game = getGameByAppName(appName)
+            if (game == null) {
+                Timber.tag("Epic").w("Game not found in database: $appName")
+                return@withContext 0L
+            }
 
-                            Timber.tag("Epic").d("Fetching manifest from: $manifestUrl")
+            // Fetch manifest using shared function
+            val manifestResult = fetchManifestFromEpic(context, game.namespace, game.id, game.appName)
+            if (manifestResult.isFailure) {
+                Timber.tag("Epic").w("Failed to fetch manifest: ${manifestResult.exceptionOrNull()?.message}")
+                return@withContext 0L
+            }
 
-                            val request = Request.Builder()
-                                .url(manifestUrl)
-                                .header("Authorization", "Bearer $accessToken")
-                                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
-                                .get()
-                                .build()
+            val manifestData = manifestResult.getOrNull()!!
 
-                            val response = httpClient.newCall(request).execute()
+            // Parse with Kotlin parser
+            val manifest = app.gamenative.service.epic.manifest.EpicManifest.readAll(manifestData.manifestBytes)
 
-                            if (response.isSuccessful) {
-                                val body = response.body?.string()
-                                if (!body.isNullOrEmpty()) {
-                                    val manifestJson = JSONObject(body)
-                                    val elements = manifestJson.optJSONArray("elements")
+            // Calculate install size
+            val installSize = manifest.fileManifestList?.elements?.sumOf { it.fileSize } ?: 0L
+            Timber.tag("Epic").d("Install size for $appName: $installSize bytes")
 
-                                    if (elements != null && elements.length() > 0) {
-                                        val element = elements.getJSONObject(0)
-                                        val manifests = element.optJSONArray("manifests")
-
-                                        if (manifests != null && manifests.length() > 0) {
-                                            // Download the actual manifest binary
-                                            val manifestObj = manifests.getJSONObject(0)
-                                            var manifestUri = manifestObj.getString("uri")
-
-                                            // Append query parameters (CDN authentication tokens)
-                                            val queryParams = manifestObj.optJSONArray("queryParams")
-                                            if (queryParams != null && queryParams.length() > 0) {
-                                                val params = StringBuilder()
-                                                for (i in 0 until queryParams.length()) {
-                                                    val param = queryParams.getJSONObject(i)
-                                                    val name = param.getString("name")
-                                                    val value = param.getString("value")
-                                                    if (i == 0) {
-                                                        params.append("?")
-                                                    } else {
-                                                        params.append("&")
-                                                    }
-                                                    params.append("$name=$value")
-                                                }
-                                                manifestUri += params.toString()
-                                            }
-
-                                            Timber.tag("Epic").d("Downloading manifest from: $manifestUri")
-
-                                            // Manifest downloads from CDN don't need/accept Epic auth tokens
-                                            val manifestRequest = Request.Builder()
-                                                .url(manifestUri)
-                                                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
-                                                .get()
-                                                .build()
-
-                                            val manifestResponse = cdnClient.newCall(manifestRequest).execute()
-
-                                            if (manifestResponse.isSuccessful) {
-                                                val manifestBytes = manifestResponse.body?.bytes()
-
-                                                if (manifestBytes != null) {
-                                                    // Parse with Kotlin parser
-                                                    val manifest = app.gamenative.service.epic.manifest.EpicManifest.readAll(manifestBytes)
-
-                                                    // Calculate install size
-                                                    installSize = manifest.fileManifestList?.elements?.sumOf { it.fileSize } ?: 0L
-
-                                                    val kotlinTime = System.currentTimeMillis() - kotlinStartTime
-                                                    Timber.tag("Epic").d("Kotlin result: $kotlinSize bytes in ${kotlinTime}ms")
-                                                } else {
-                                                    Timber.tag("Epic").w("Empty manifest bytes from Kotlin download")
-                                                }
-                                            } else {
-                                                Timber.tag("Epic").w("Failed to download manifest binary: ${manifestResponse.code}")
-                                            }
-                                        } else {
-                                            Timber.tag("Epic").w("No manifests in API response")
-                                        }
-                                    } else {
-                                        Timber.tag("Epic").w("No elements in manifest API response")
-                                    }
-                                } else {
-                                    Timber.tag("Epic").w("Empty manifest API response")
-                                }
-                            } else {
-                                Timber.tag("Epic").w("Manifest API request failed: ${response.code}")
-                            }
-                        }
-                    }
-                }
             return@withContext installSize
         } catch (e: Exception) {
             Timber.tag("Epic").e(e, "Exception fetching install size for $appName")

@@ -399,6 +399,115 @@ object EpicPythonBridge {
     }
 
     /**
+     * Download an Epic game using Legendary's downloader with progress tracking
+     * This uses Python's HTTP stack which has a desktop TLS fingerprint
+     *
+     * @param context Android context
+     * @param appName Epic app name
+     * @param installPath Where to install the game
+     * @param downloadInfo Progress tracker
+     * @return Result indicating success or failure
+     */
+    suspend fun downloadGameWithProgress(
+        context: Context,
+        appName: String,
+        installPath: String,
+        downloadInfo: DownloadInfo
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            initialize(context)
+
+            if (!Python.isStarted()) {
+                return@withContext Result.failure(Exception("Python environment not initialized"))
+            }
+
+            Timber.tag("Epic").i("Starting Legendary download for $appName to $installPath")
+
+            // Execute legendary download command through Python
+            // This will use Python's requests library which has the correct TLS fingerprint
+            val pythonCode = """
+import sys
+import os
+from legendary.core import LegendaryCore
+from legendary.models.downloading import AnalysisResult, ConditionCheckResult
+
+try:
+    core = LegendaryCore()
+    
+    # Login
+    if not core.login():
+        print("ERROR: Authentication failed")
+        sys.exit(1)
+    
+    # Get game info
+    game = core.get_game('$appName')
+    if not game:
+        print("ERROR: Game not found")
+        sys.exit(1)
+    
+    # Install game
+    # Note: base_path will be the parent directory, game_folder will be the game name
+    base_path = os.path.dirname('$installPath')
+    game_folder = os.path.basename('$installPath')
+    
+    # Get install parameters
+    dlm, analysis, igame = core.prepare_download(
+        game=game,
+        base_path=base_path,
+        force=False,
+        max_shm=0,
+        max_workers=2,
+        game_folder=game_folder,
+        disable_patching=False,
+        override_manifest='',
+        override_old_manifest='',
+        override_base_url='',
+        platform='Windows'
+    )
+    
+    # Start download
+    dlm.start()
+    dlm.join()
+    
+    if dlm.is_alive():
+        print("ERROR: Download manager still running")
+        sys.exit(1)
+    
+    print("SUCCESS")
+    
+except Exception as e:
+    import traceback
+    print(f"ERROR: {str(e)}")
+    print(traceback.format_exc())
+    sys.exit(1)
+"""
+
+            val result = executePythonCode(context, pythonCode)
+            
+            if (result.isFailure) {
+                return@withContext Result.failure(
+                    result.exceptionOrNull() ?: Exception("Python download failed")
+                )
+            }
+
+            val output = result.getOrNull() ?: ""
+            if (output.contains("ERROR:")) {
+                val errorMsg = output.lines().find { it.startsWith("ERROR:") }?.removePrefix("ERROR: ") ?: "Unknown error"
+                return@withContext Result.failure(Exception(errorMsg))
+            }
+
+            if (!output.contains("SUCCESS")) {
+                return@withContext Result.failure(Exception("Download did not complete successfully"))
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.tag("Epic").e(e, "Failed to download game via Python")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Estimate progress when parsing fails
      * Fallback to time-based estimation (same as GOG)
      */
