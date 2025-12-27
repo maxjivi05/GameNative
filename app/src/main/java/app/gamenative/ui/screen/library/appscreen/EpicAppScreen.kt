@@ -282,7 +282,7 @@ class EpicAppScreen : BaseAppScreen() {
             Timber.tag(TAG).d("isInstalled: appId=${libraryItem.appId}, appName=$appName, result=$installed")
             installed
         } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to check install status for ${libraryItfem.appId}")
+            Timber.tag(TAG).e(e, "Failed to check install status for ${libraryItem.appId}")
             false
         }
     }

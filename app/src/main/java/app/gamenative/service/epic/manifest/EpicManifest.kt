@@ -5,6 +5,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 import java.util.zip.Inflater
+import timber.log.Timber
 
 /**
  * Base class for Epic Games manifest parsing.
