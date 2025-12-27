@@ -9,6 +9,9 @@ import app.gamenative.data.EpicCredentials
 import app.gamenative.data.EpicGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
+import app.gamenative.utils.MarkerUtils
+import app.gamenative.enums.Marker
+import app.gamenative.utils.ContainerUtils
 import app.gamenative.service.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
@@ -143,8 +146,23 @@ class EpicService : Service() {
                     }
                 }
 
+                // Remove all markers
+                val appDirPath = game.installPath
+                MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_COMPLETE_MARKER)
+                MarkerUtils.removeMarker(appDirPath, Marker.DOWNLOAD_IN_PROGRESS_MARKER)
+
                 // Uninstall from database (keeps the entry but marks as not installed)
                 instance.epicManager.uninstall(game.id)
+
+                // Delete container (must run on Main thread)
+                withContext(Dispatchers.Main) {
+                    ContainerUtils.deleteContainer(context, game.id)
+                }
+
+                // Trigger library refresh event
+                app.gamenative.PluviaApp.events.emitJava(
+                    app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged("EPIC_${game.appName}")
+                )
 
                 Timber.tag("Epic").i("Game uninstalled: $appName")
                 Result.success(Unit)
@@ -323,9 +341,8 @@ class EpicService : Service() {
                     Timber.tag("Epic").i("Starting download for ${game.title}")
 
                     // Emit event for UI to start tracking progress
-                    val gameId = game.id.toIntOrNull() ?: 0
                     app.gamenative.PluviaApp.events.emitJava(
-                        app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true),
+                        app.gamenative.events.AndroidEvent.DownloadStatusChanged("EPIC_${game.appName}", true),
                     )
 
                     val result = instance.epicDownloadManager.downloadGame(
@@ -348,20 +365,18 @@ class EpicService : Service() {
                         instance.epicManager.updateGame(updatedGame)
 
                         // Emit events for UI update
-                        val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged("EPIC_${game.appName}", false),
                         )
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(gameId),
+                            app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged("EPIC_${game.appName}"),
                         )
                     } else {
                         Timber.tag("Epic").e("Download failed: ${result.exceptionOrNull()?.message}")
 
                         // Emit event for UI update on failure
-                        val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged("EPIC_${game.appName}", false),
                         )
                     }
                 } catch (e: Exception) {
@@ -370,9 +385,8 @@ class EpicService : Service() {
                     // Emit event for UI update on exception
                     val game = instance.epicManager.getGameByAppName(appName)
                     if (game != null) {
-                        val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged("EPIC_${game.appName}", false),
                         )
                     }
                 } finally {

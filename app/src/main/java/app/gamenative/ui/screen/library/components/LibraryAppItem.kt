@@ -237,14 +237,15 @@ internal fun AppItem(
                                 appInfo.iconHash
                             }
                             GameSource.EPIC -> {
+                                appInfo.iconHash
                                 // TODO: Refactor LibraryItem to allow for a function that grabs the icon.
-                                val epicUrl = when(paneType) {
-                                    PaneType.GRID_CAPSULE -> {
-                                        appInfo.iconHash
-                                    }
-                                    else -> {
-                                    appInfo.iconHash
-                                }
+                                // val epicUrl = when(paneType) {
+                                //     PaneType.GRID_CAPSULE -> {
+                                //         appInfo.iconHash
+                                //     }
+                                //     else -> {
+                                //     appInfo.iconHash
+                                // }
                             }
                             GameSource.STEAM -> {
                                 // For Steam games, use standard Steam URLs
