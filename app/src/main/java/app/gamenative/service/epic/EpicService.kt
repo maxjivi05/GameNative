@@ -293,9 +293,12 @@ class EpicService : Service() {
                 return "\"explorer.exe\""
             }
 
-            // Convert Windows path to Wine format
-            val winePath = exePath.replace(game.installPath, "Z:${game.installPath}")
-                .replace("/", "\\")
+            // Convert to relative path from install directory
+            val relativePath = exePath.removePrefix(game.installPath).removePrefix("/")
+            
+            // Use A: drive (or the mapped drive letter) instead of Z:
+            // The container setup in ContainerUtils maps the game install path to A: drive
+            val winePath = "A:\\$relativePath".replace("/", "\\")
 
             Timber.tag("Epic").i("Launching Epic game with exe: $winePath")
 

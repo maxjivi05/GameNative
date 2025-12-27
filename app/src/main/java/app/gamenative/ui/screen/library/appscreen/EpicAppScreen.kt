@@ -568,19 +568,6 @@ class EpicAppScreen : BaseAppScreen() {
         )
     }
 
-    /**
-     * Override to launch Epic games properly (not as boot-to-container)
-     */
-    override fun onRunContainerClick(
-        context: Context,
-        libraryItem: LibraryItem,
-        onClickPlay: (Boolean) -> Unit
-    ) {
-        // Epic games should launch with bootToContainer=false so getWineStartCommand
-        // can construct the proper launch command via EpicManager
-        Timber.tag(TAG).i("Launching Epic game: ${libraryItem.appId}")
-        onClickPlay(false)
-    }
 
     /**
      * Epic games don't need special image fetching logic like Custom Games
