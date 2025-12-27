@@ -73,6 +73,7 @@ import app.gamenative.ui.theme.PluviaTheme
 import app.gamenative.ui.util.ListItemImage
 import app.gamenative.utils.CustomGameScanner
 import java.io.File
+import timber.log.Timber
 
 @Composable
 internal fun AppItem(
@@ -255,14 +256,15 @@ internal fun AppItem(
                             }
 
                             GameSource.EPIC -> {
-                                val game = EpicService.getEpicGameOf(appInfo.appId)
+
+                                val game = EpicService.getEpicGameOf(appInfo.appId.removePrefix("EPIC_"))
+
                                 val epicUrl = when (paneType) {
                                     PaneType.GRID_CAPSULE -> {
                                         game?.artCover
                                     }
-
                                     else -> {
-                                        game?.artPortrait
+                                        game?.artSquare
                                     }
                                 }
                                 epicUrl

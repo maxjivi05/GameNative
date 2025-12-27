@@ -553,8 +553,11 @@ object ContainerUtils {
                 // For Epic games, map the specific game directory to A: drive
                 val appName = appId.removePrefix("EPIC_")
                 val game = app.gamenative.service.epic.EpicService.getEpicGameOf(appName)
+                Timber.tag("Epic").d("EPIC GAME FOUND FOR DRIVE: $appName")
                 if (game != null && game.installPath.isNotEmpty()) {
                     val gameInstallPath = game.installPath
+
+                    Timber.tag("Epic").d("EPIC INSTALL PATH FOUND FOR DRIVE: $gameInstallPath")
                     val drive: Char = if (defaultDrives.contains("A:")) {
                         Container.getNextAvailableDriveLetter(defaultDrives)
                     } else {
