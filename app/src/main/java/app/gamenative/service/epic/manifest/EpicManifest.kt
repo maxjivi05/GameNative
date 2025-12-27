@@ -40,12 +40,15 @@ sealed class EpicManifest {
                 val buffer = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
                 val magic = buffer.int.toUInt()
                 if (magic == HEADER_MAGIC) {
+                    Timber.tag("Epic").i("Binary Manifest Detected!")
                     BinaryManifest()
                 } else {
+                    Timber.tag("Epic").i("JSON Manifest Detected!")
                     JsonManifest()
                 }
             } else {
                 // Try JSON by default for small files
+                Timber.tag("Epic").i("Defaulting to JSON Manifest...")
                 JsonManifest()
             }
         }
