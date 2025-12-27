@@ -186,7 +186,7 @@ class EpicManager @Inject constructor(
 
             if (listResult.isFailure) {
                 val error = listResult.exceptionOrNull()
-                Timber.e(error, "Failed to fetch games from Epic: ${error?.message}")
+                Timber.tag("Epic").e(error, "Failed to fetch games from Epic: ${error?.message}")
                 return@withContext Result.failure(error ?: Exception("Failed to fetch Epic library"))
             }
 
@@ -194,7 +194,7 @@ class EpicManager @Inject constructor(
             Timber.tag("Epic").i("Successfully fetched ${games.size} games from Epic")
 
             if (games.isEmpty()) {
-                Timber.w("No games found in Epic library")
+                Timber.tag("Epic").w("No games found in Epic library")
                 return@withContext Result.success(0)
             }
 
@@ -210,7 +210,7 @@ class EpicManager @Inject constructor(
                         Timber.tag("Epic").d("Refreshed Game: ${epicGame.title}")
                     }
                 } else {
-                    Timber.w("Epic game ${game.appName} could not be fetched")
+                    Timber.tag("Epic").w("Epic game ${game.appName} could not be fetched")
                 }
 
                 if ((index + 1) % REFRESH_BATCH_SIZE == 0 || index == games.size - 1) {
@@ -265,7 +265,7 @@ class EpicManager @Inject constructor(
             // Fetch all pages of library items
             do {
                 val url = buildString {
-                    append("https://${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true")
+                    append("${EpicConstants.EPIC_LIBRARY_API_URL}?includeMetadata=true")
                     if (cursor != null) {
                         append("&cursor=$cursor")
                     }
@@ -278,26 +278,26 @@ class EpicManager @Inject constructor(
                     .get()
                     .build()
 
-                Timber.d("Fetching Epic library page: cursor=$cursor")
+                Timber.tag("Epic").d("Fetching Epic library page: cursor=$cursor")
 
                 val response = httpClient.newCall(request).execute()
 
                 if (!response.isSuccessful) {
                     val error = response.body?.string() ?: "Unknown error"
-                    Timber.e("Library fetch failed: ${response.code} - $error")
+                    Timber.tag("Epic").e("Library fetch failed: ${response.code} - $error")
                     return@withContext Result.failure(Exception("HTTP ${response.code}: $error"))
                 }
 
                 val body = response.body?.string()
                 if (body.isNullOrEmpty()) {
-                    Timber.e("Empty response body from library API")
+                    Timber.tag("Epic").e("Empty response body from library API")
                     return@withContext Result.failure(Exception("Empty response"))
                 }
 
                 val json = JSONObject(body)
                 val records = json.optJSONArray("records") ?: JSONArray()
 
-                Timber.d("Received ${records.length()} library items in this page")
+                Timber.tag("Epic").d("Received ${records.length()} library items in this page")
 
                 // Process records and fetch game info for each
                 for (i in 0 until records.length()) {
@@ -316,7 +316,7 @@ class EpicManager @Inject constructor(
 
                     // Skip UE assets, private sandboxes, and broken entries
                     if (namespace == "ue" || sandboxType == "PRIVATE" || appName == "1") {
-                        Timber.d("Skipping $appName (namespace=$namespace, sandbox=$sandboxType)")
+                        Timber.tag("Epic").d("Skipping $appName (namespace=$namespace, sandbox=$sandboxType)")
                         continue
                     }
 
@@ -324,19 +324,20 @@ class EpicManager @Inject constructor(
                     val gameInfo = ParsedLibraryItem(appName, namespace, catalogItemId, sandboxType, country)
                     gameList.add(gameInfo)
                 }
-                // Get cursor for next page - Cursor can either be empty, is equals the same one.
+                // Get cursor for next page - stop if cursor is null or same as previous
                 val metadata = json.optJSONObject("responseMetadata")
                 val oldCursor = cursor
                 cursor = metadata?.optString("nextCursor")?.takeIf { it.isNotEmpty() }
-            } while (cursor != null || cursor != oldCursor)
+            } while (cursor != null && cursor != oldCursor)
 
-            Timber.i("Successfully fetched ${gameList.size} games from Epic library")
+            Timber.tag("Epic").i("Successfully fetched ${gameList.size} games from Epic library")
             Result.success(gameList)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to fetch Epic library")
+            Timber.tag("Epic").e(e, "Failed to fetch Epic library")
             Result.failure(e)
         }
     }
+
     private suspend fun fetchGameInfo(
         context: Context,
         game: ParsedLibraryItem,
