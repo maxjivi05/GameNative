@@ -389,11 +389,7 @@ class GOGAppScreen : BaseAppScreen() {
         Timber.tag(TAG).d("Update clicked for GOG game: ${libraryItem.appId}")
     }
 
-    override fun getExportFileExtension(): String {
-        Timber.tag(TAG).d("getExportFileExtension: returning 'tzst'")
-        // GOG containers use the same export format as other Wine containers
-        return "tzst"
-    }
+override fun getExportFileExtension(): String = ".pcgame"
 
     override fun getInstallPath(context: Context, libraryItem: LibraryItem): String? {
         Timber.tag(TAG).d("getInstallPath: appId=${libraryItem.appId}")

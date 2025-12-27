@@ -30,6 +30,16 @@ import timber.log.Timber
  * This service maintains backward compatibility through static accessors
  * while delegating all operations to the appropriate managers.
  */
+
+ /**
+  * TODO: Test Pausing and Cancelling Downloads
+  * TODO: Add the fix from GOG Service to select the correct .exe
+  * TODO: Ensure we give a list of .exes for the ContainerConfigDialog
+  * TODO: Clean up all the code in the Epic files
+  * TODO: Remove all the Python code and put in the basic information regarding Cloud Saves.
+  * TODO: Fix the issue with URLs. Currently we assume a basic URL and then dynamically add to it.
+  * TODO: We should be bringing in function that brings back a URL potentially instead
+ */
 @AndroidEntryPoint
 class EpicService : Service() {
 
@@ -295,7 +305,7 @@ class EpicService : Service() {
 
             // Convert to relative path from install directory
             val relativePath = exePath.removePrefix(game.installPath).removePrefix("/")
-            
+
             // Use A: drive (or the mapped drive letter) instead of Z:
             // The container setup in ContainerUtils maps the game install path to A: drive
             val winePath = "A:\\$relativePath".replace("/", "\\")

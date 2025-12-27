@@ -282,7 +282,7 @@ class EpicAppScreen : BaseAppScreen() {
             Timber.tag(TAG).d("isInstalled: appId=${libraryItem.appId}, appName=$appName, result=$installed")
             installed
         } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to check install status for ${libraryItem.appId}")
+            Timber.tag(TAG).e(e, "Failed to check install status for ${libraryItfem.appId}")
             false
         }
     }
@@ -494,11 +494,7 @@ class EpicAppScreen : BaseAppScreen() {
         Timber.tag(TAG).d("Update clicked for Epic game: ${libraryItem.appId}")
     }
 
-    override fun getExportFileExtension(): String {
-        Timber.tag(TAG).d("getExportFileExtension: returning 'tzst'")
-        // Epic containers use the same export format as other Wine containers
-        return "tzst"
-    }
+    override fun getExportFileExtension(): String = ".pcgame"
 
     override fun getInstallPath(context: Context, libraryItem: LibraryItem): String? {
         Timber.tag(TAG).d("getInstallPath: appId=${libraryItem.appId}")
