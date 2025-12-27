@@ -179,6 +179,7 @@ class EpicAppScreen : BaseAppScreen() {
                     |║   Executable: ${game.executable.ifEmpty { "N/A" }}
                     |║   Download Size: ${game.downloadSize} bytes (${game.downloadSize / 1_000_000_000.0} GB)
                     |║   Install Size: ${game.installSize} bytes (${game.installSize / 1_000_000_000.0} GB)
+                         baseGameAppName: ${game.baseGameAppName}
                     |║
                     |║ ARTWORK
                     |║   Cover (Tall): ${game.artCover.ifEmpty { "N/A" }}

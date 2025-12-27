@@ -392,6 +392,13 @@ class LibraryViewModel @Inject constructor(
                         true
                     }
                 }
+                .filter { game ->
+                    if (game.isDLC) {
+                        false
+                    } else {
+                        true
+                    }
+                }
                 .toList()
 
             val epicEntries = filteredEpicGames.map { game ->
