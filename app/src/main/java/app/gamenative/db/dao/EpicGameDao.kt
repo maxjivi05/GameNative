@@ -28,7 +28,7 @@ interface EpicGameDao {
     @Delete
     suspend fun delete(game: EpicGame)
 
-    @Query("UPDATE epic_games SET is_installed = 0, install_path = NULL, install_size = 0 WHERE id = :appId")
+    @Query("UPDATE epic_games SET is_installed = 0, install_path='',install_size = 0 WHERE id = :appId")
     suspend fun uninstall(appId: String)
 
     @Query("DELETE FROM epic_games WHERE id = :appId")

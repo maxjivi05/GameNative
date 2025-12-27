@@ -119,7 +119,6 @@ class EpicDownloadManager @Inject constructor(
             val chunkCacheDir = File(installPath, ".chunks")
             chunkCacheDir.mkdirs()
 
-            // Log manifest CDN URLs for comparison with Python
             Timber.tag("Epic").d("""
                 |=== NATIVE KOTLIN MANIFEST DATA ===
                 |CDN URLs (${cdnUrls.size}):
@@ -221,8 +220,6 @@ class EpicDownloadManager @Inject constructor(
 
                     val request = Request.Builder()
                         .url(url)
-                        // REMOVED User-Agent - Python/Legendary doesn't send it and works fine
-                        // .header("User-Agent", "EpicGamesLauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit")
                         .build()
 
                     Timber.tag("Epic").d("""

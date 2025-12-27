@@ -23,8 +23,6 @@ data class EpicAuthResponse(
     val expiresIn: Int,
 )
 
-// TODO: Update all of our API Calls to use Kotlin instead of Python.
-
 /**
  * Native Epic OAuth authentication client
  *

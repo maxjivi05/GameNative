@@ -400,7 +400,7 @@ class LibraryViewModel @Inject constructor(
                         index = 0,
                         appId = "EPIC_${game.appName}",
                         name = game.title,
-                        iconHash = game.iconUrl,
+                        iconHash = game.artCover,
                         isShared = false,
                         gameSource = GameSource.EPIC,
                     ),

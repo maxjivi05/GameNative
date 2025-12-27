@@ -21,7 +21,6 @@ import timber.log.Timber
  * Epic Games Service - thin coordinator that delegates to specialized managers.
  *
  * Architecture:
- * - EpicPythonBridge: Low-level Legendary CLI command execution
  * - EpicAuthManager: Authentication and account management
  * - EpicManager: Game library, downloads, and installation
  *
@@ -60,8 +59,10 @@ class EpicService : Service() {
         }
 
         fun initialize(context: Context): Boolean {
-            return EpicPythonBridge.initialize(context)
+            // No initialization needed - EpicDownloadManager uses native Kotlin implementation
+            return true
         }
+
 
         // ==========================================================================
         // AUTHENTICATION - Delegate to EpicAuthManager
@@ -401,9 +402,6 @@ class EpicService : Service() {
 
     @Inject
     lateinit var epicDownloadManager: EpicDownloadManager
-
-    @Inject
-    lateinit var pythonDownloadManager: PythonDownloadManager
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
