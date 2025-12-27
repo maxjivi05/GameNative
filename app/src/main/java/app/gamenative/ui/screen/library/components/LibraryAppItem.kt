@@ -237,12 +237,14 @@ internal fun AppItem(
                                 appInfo.iconHash
                             }
                             GameSource.EPIC -> {
-                                // For Epic games, use the iconHash which contains the full image URL from Epic CDN
-                                // Epic stores full HTTPS URLs (e.g., https://cdn1.epicgames.com/...) in iconHash
-                                // This comes from EpicGame.iconUrl which prioritizes artSquare or primaryImageUrl
-                                val epicUrl = appInfo.iconHash.ifEmpty { appInfo.clientIconUrl }
-                                timber.log.Timber.d("Epic image URL for ${appInfo.name}: iconHash='${appInfo.iconHash}', final='$epicUrl'")
-                                epicUrl
+                                // TODO: Refactor LibraryItem to allow for a function that grabs the icon.
+                                val epicUrl = when(paneType) {
+                                    PaneType.GRID_CAPSULE -> {
+                                        appInfo.iconHash
+                                    }
+                                    else -> {
+                                    appInfo.iconHash
+                                }
                             }
                             GameSource.STEAM -> {
                                 // For Steam games, use standard Steam URLs
