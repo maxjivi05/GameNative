@@ -45,20 +45,6 @@ class EpicDownloadManager @Inject constructor(
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
-        .protocols(listOf(okhttp3.Protocol.HTTP_1_1)) // Force HTTP/1.1 like Python
-        .addNetworkInterceptor { chain ->
-            // Network interceptor runs AFTER OkHttp's internal processing
-            // This is where we can truly strip headers before they hit the wire
-            val originalRequest = chain.request()
-            val cleanRequest = originalRequest.newBuilder()
-                .removeHeader("User-Agent")
-                .removeHeader("Accept-Encoding")
-                .removeHeader("Connection")
-                .build()
-
-            Timber.tag("Epic").d("ACTUAL NETWORK REQUEST HEADERS AFTER CLEANUP: ${cleanRequest.headers}")
-            chain.proceed(cleanRequest)
-        }
         .build()
 
     companion object {
@@ -229,7 +215,8 @@ class EpicDownloadManager @Inject constructor(
             for (cdnUrl in cdnUrls) {
                 try {
                     // Note: chunks are downloaded without auth tokens (tokens are only for manifests)
-                    val url = "${cdnUrl.baseUrl}/$chunkPath"
+                    // Build full URL: baseUrl + cloudDir + chunkPath
+                    val url = "${cdnUrl.baseUrl}${cdnUrl.cloudDir}/$chunkPath"
                     Timber.tag("Epic").d("Downloading chunk from: $url")
 
                     val request = Request.Builder()

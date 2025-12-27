@@ -660,9 +660,11 @@ class EpicManager @Inject constructor(
     )
 
     // authQueryParams:  e.g., "?f_token=..." or "?ak_token=..."
+    // cloudDir: e.g., "/Builds/Org/{org}/{build}/default" - the path prefix for chunks
     data class CdnUrl(
         val baseUrl: String,
-        val authQueryParams: String
+        val authQueryParams: String,
+        val cloudDir: String = ""  // Full build path for chunk downloads
     )
 
     /**
@@ -740,6 +742,17 @@ class EpicManager @Inject constructor(
                     continue
                 }
 
+                // Extract CloudDir (build path) from URI
+                // Example: https://fastly-download.epicgames.com/Builds/Org/{org}/{build}/default/...
+                // CloudDir: /Builds/Org/{org}/{build}/default
+                val cloudDir = if (uri.contains("/Builds")) {
+                    val afterBase = uri.substringAfter(baseUrl)
+                    val manifestFilename = afterBase.substringAfterLast("/")
+                    afterBase.substringBefore("/" + manifestFilename)
+                } else {
+                    ""
+                }
+
                 // Extract authentication query parameters for this CDN
                 val queryParams = manifest.optJSONArray("queryParams")
                 val authParams = if (queryParams != null && queryParams.length() > 0) {
@@ -756,7 +769,7 @@ class EpicManager @Inject constructor(
                     ""
                 }
 
-                cdnUrls.add(CdnUrl(baseUrl, authParams))
+                cdnUrls.add(CdnUrl(baseUrl, authParams, cloudDir))
             }
 
             // Error if no CDN URLs could be extracted

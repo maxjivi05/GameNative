@@ -327,21 +327,12 @@ class EpicService : Service() {
                         app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true),
                     )
 
-                    // Download the game using Python/Legendary (works around Epic's TLS fingerprinting)
-                    // Native Kotlin download blocked by Epic CDN due to Android TLS fingerprint detection
-                    val result = instance.pythonDownloadManager.downloadGame(
+                    val result = instance.epicDownloadManager.downloadGame(
                         context = context,
                         game = game,
                         installPath = installPath,
                         downloadInfo = downloadInfo,
                     )
-
-                    // val result = instance.epicDownloadManager.downloadGame(
-                    //     context = context,
-                    //     game = game,
-                    //     installPath = installPath,
-                    //     downloadInfo = downloadInfo,
-                    // )
 
                     Timber.tag("Epic").d("Download result: ${if (result.isSuccess) "SUCCESS" else "FAILURE: ${result.exceptionOrNull()?.message}"}")
 
