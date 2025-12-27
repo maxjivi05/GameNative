@@ -51,6 +51,14 @@ class EpicManager @Inject constructor(
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
+    // Separate client for CDN downloads - no connection pooling, follows redirects
+    private val cdnClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
+
     // DarkSiders 2 example for grabbing the details. Requires the Namespace and the catalog ID.
     // https://catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/091d95ea332843498122beee1a786d71/bulk/items?id=8c04901974534bd0818f747952b0a19b&includeDLCDetails=true&includeMainGameDetails=true
 
@@ -619,17 +627,21 @@ class EpicManager @Inject constructor(
 
             Timber.tag("Epic").i("Starting Epic library background sync...")
 
-            val result = refreshLibrary(context)
+            // TODO: Remove once finished testing.
+            Timber.tag("Epic").i("Starting Epic library background sync...")
+            Result.success(Unit)
 
-            if (result.isSuccess) {
-                val count = result.getOrNull() ?: 0
-                Timber.tag("Epic").i("Background sync completed: $count games synced")
-                Result.success(Unit)
-            } else {
-                val error = result.exceptionOrNull()
-                Timber.e(error, "Background sync failed: ${error?.message}")
-                Result.failure(error ?: Exception("Background sync failed"))
-            }
+            // val result = refreshLibrary(context)
+
+            // if (result.isSuccess) {
+            //     val count = result.getOrNull() ?: 0
+            //     Timber.tag("Epic").i("Background sync completed: $count games synced")
+            //     Result.success(Unit)
+            // } else {
+            //     val error = result.exceptionOrNull()
+            //     Timber.e(error, "Background sync failed: ${error?.message}")
+            //     Result.failure(error ?: Exception("Background sync failed"))
+            // }
         } catch (e: Exception) {
             Timber.e(e, "Failed to sync Epic library in background")
             Result.failure(e)
@@ -760,16 +772,37 @@ except Exception as e:
 
                                         if (manifests != null && manifests.length() > 0) {
                                             // Download the actual manifest binary
-                                            val manifestUri = manifests.getJSONObject(0).getString("uri")
+                                            val manifestObj = manifests.getJSONObject(0)
+                                            var manifestUri = manifestObj.getString("uri")
+                                            
+                                            // Append query parameters (CDN authentication tokens)
+                                            val queryParams = manifestObj.optJSONArray("queryParams")
+                                            if (queryParams != null && queryParams.length() > 0) {
+                                                val params = StringBuilder()
+                                                for (i in 0 until queryParams.length()) {
+                                                    val param = queryParams.getJSONObject(i)
+                                                    val name = param.getString("name")
+                                                    val value = param.getString("value")
+                                                    if (i == 0) {
+                                                        params.append("?")
+                                                    } else {
+                                                        params.append("&")
+                                                    }
+                                                    params.append("$name=$value")
+                                                }
+                                                manifestUri += params.toString()
+                                            }
 
                                             Timber.tag("Epic").d("Downloading manifest from: $manifestUri")
 
+                                            // Manifest downloads from CDN don't need/accept Epic auth tokens
                                             val manifestRequest = Request.Builder()
                                                 .url(manifestUri)
+                                                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
                                                 .get()
                                                 .build()
 
-                                            val manifestResponse = httpClient.newCall(manifestRequest).execute()
+                                            val manifestResponse = cdnClient.newCall(manifestRequest).execute()
 
                                             if (manifestResponse.isSuccessful) {
                                                 val manifestBytes = manifestResponse.body?.bytes()
