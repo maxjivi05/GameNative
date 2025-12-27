@@ -593,6 +593,19 @@ class EpicManager @Inject constructor(
         }
     }
 
+    suspend fun insertGame(game: EpicGame) {
+        withContext(Dispatchers.IO) {
+            epicGameDao.insert(game)
+        }
+    }
+
+    suspend fun updateGame(game: EpicGame) {
+        withContext(Dispatchers.IO) {
+            epicGameDao.update(game)
+        }
+    }
+
+
     /**
      * Start background sync (called after login)
      */
@@ -627,6 +640,7 @@ class EpicManager @Inject constructor(
      * Manifest is small (~500KB-1MB) and contains all file metadata
      * Returns size in bytes, or 0 if failed
      */
+    // TODO: Remove this and re-use the manifest parsing in Kotlin. But first we need to compare that the two work.
     suspend fun fetchInstallSize(context: Context, appName: String): Long = withContext(Dispatchers.IO) {
         try {
             Timber.tag("Epic").d("Fetching install size for $appName via manifest...")

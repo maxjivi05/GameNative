@@ -13,9 +13,9 @@ import app.gamenative.service.NotificationHelper
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
 import kotlinx.coroutines.*
 import timber.log.Timber
-import javax.inject.Inject
 
 /**
  * Epic Games Service - thin coordinator that delegates to specialized managers.
@@ -40,7 +40,6 @@ class EpicService : Service() {
 
         val isRunning: Boolean
             get() = instance != null
-
 
         fun start(context: Context) {
             Timber.tag("Epic").i("[EpicService.start] Called. isRunning=$isRunning")
@@ -104,26 +103,21 @@ class EpicService : Service() {
         // DOWNLOAD OPERATIONS - Delegate to instance EpicManager
         // ==========================================================================
 
-
         fun hasActiveDownload(): Boolean {
             return getInstance()?.activeDownloads?.isNotEmpty() ?: false
         }
-
 
         fun getCurrentlyDownloadingGame(): String? {
             return getInstance()?.activeDownloads?.keys?.firstOrNull()
         }
 
-
         fun getDownloadInfo(appName: String): DownloadInfo? {
             return getInstance()?.activeDownloads?.get(appName)
         }
 
-
         fun cleanupDownload(appName: String) {
             getInstance()?.activeDownloads?.remove(appName)
         }
-
 
         fun cancelDownload(appName: String): Boolean {
             val instance = getInstance()
@@ -145,24 +139,20 @@ class EpicService : Service() {
         // GAME & LIBRARY OPERATIONS - Delegate to instance EpicManager (Stubs)
         // ==========================================================================
 
-
         fun getEpicGameOf(appName: String): EpicGame? {
             return runBlocking {
                 getInstance()?.epicManager?.getGameByAppName(appName)
             }
         }
 
-
         suspend fun updateEpicGame(game: EpicGame) {
             getInstance()?.epicManager?.updateGame(game)
         }
-
 
         fun isGameInstalled(appName: String): Boolean {
             val game = getEpicGameOf(appName)
             return game?.isInstalled == true
         }
-
 
         fun getInstallPath(appName: String): String? {
             val game = getEpicGameOf(appName)
@@ -173,12 +163,10 @@ class EpicService : Service() {
             }
         }
 
-
         fun verifyInstallation(appName: String): Pair<Boolean, String?> {
             // TODO: Implement when EpicManager is ready
             return Pair(false, "Not implemented")
         }
-
 
         suspend fun getInstalledExe(context: Context, libraryItem: LibraryItem): String {
             // Strip EPIC_ prefix to get the raw Epic app name
@@ -217,7 +205,6 @@ class EpicService : Service() {
             return ""
         }
 
-
         fun getWineStartCommand(
             context: Context,
             libraryItem: LibraryItem,
@@ -225,7 +212,7 @@ class EpicService : Service() {
             bootToContainer: Boolean,
             appLaunchInfo: LaunchInfo?,
             envVars: com.winlator.core.envvars.EnvVars,
-            guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent
+            guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent,
         ): String {
             // Strip EPIC_ prefix to get the raw Epic app name
             val epicAppName = libraryItem.appId.removePrefix("EPIC_")
@@ -258,7 +245,6 @@ class EpicService : Service() {
             // Build Wine command with proper escaping
             return "\"$winePath\""
         }
-
 
         suspend fun refreshLibrary(context: Context): Result<Int> {
             return getInstance()?.epicManager?.refreshLibrary(context)
@@ -300,7 +286,7 @@ class EpicService : Service() {
                     // Emit event for UI to start tracking progress
                     val gameId = game.id.toIntOrNull() ?: 0
                     app.gamenative.PluviaApp.events.emitJava(
-                        app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true)
+                        app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, true),
                     )
 
                     // Download the game
@@ -308,7 +294,7 @@ class EpicService : Service() {
                         context = context,
                         game = game,
                         installPath = installPath,
-                        downloadInfo = downloadInfo
+                        downloadInfo = downloadInfo,
                     )
 
                     if (result.isSuccess) {
@@ -317,17 +303,17 @@ class EpicService : Service() {
                         // Update game as installed
                         val updatedGame = game.copy(
                             isInstalled = true,
-                            installPath = installPath
+                            installPath = installPath,
                         )
                         instance.epicManager.updateGame(updatedGame)
 
                         // Emit events for UI update
                         val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
                         )
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(gameId)
+                            app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged(gameId),
                         )
                     } else {
                         Timber.tag("Epic").e("Download failed: ${result.exceptionOrNull()?.message}")
@@ -335,10 +321,9 @@ class EpicService : Service() {
                         // Emit event for UI update on failure
                         val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
                         )
                     }
-
                 } catch (e: Exception) {
                     Timber.tag("Epic").e(e, "Download exception for $appName")
 
@@ -347,7 +332,7 @@ class EpicService : Service() {
                     if (game != null) {
                         val gameId = game.id.toIntOrNull() ?: 0
                         app.gamenative.PluviaApp.events.emitJava(
-                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false)
+                            app.gamenative.events.AndroidEvent.DownloadStatusChanged(gameId, false),
                         )
                     }
                 } finally {
@@ -359,7 +344,6 @@ class EpicService : Service() {
             return Result.success(instance.activeDownloads[appName]!!)
         }
 
-
         suspend fun refreshSingleGame(appName: String, context: Context): Result<EpicGame?> {
             // For now, just get from database
             val game = getInstance()?.epicManager?.getGameByAppName(appName)
@@ -369,7 +353,6 @@ class EpicService : Service() {
                 Result.failure(Exception("Game not found: $appName"))
             }
         }
-
 
         suspend fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
             // TODO: Implement when EpicManager is ready
