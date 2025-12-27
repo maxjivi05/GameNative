@@ -640,12 +640,16 @@ class EpicManager @Inject constructor(
      * Fetch install size for a game by downloading its manifest
      * Manifest is small (~500KB-1MB) and contains all file metadata
      * Returns size in bytes, or 0 if failed
+     *
+     * This function implements both Python (via legendary) and Kotlin parsing
+     * and compares the results to validate the Kotlin implementation
      */
-    // TODO: Remove this and re-use the manifest parsing in Kotlin. But first we need to compare that the two work.
     suspend fun fetchInstallSize(context: Context, appName: String): Long = withContext(Dispatchers.IO) {
         try {
-            Timber.tag("Epic").d("Fetching install size for $appName via manifest...")
+            Timber.tag("Epic").d("Fetching install size for $appName via manifest (comparing Python vs Kotlin)...")
 
+            // ========== PYTHON IMPLEMENTATION (via legendary) ==========
+            val pythonStartTime = System.currentTimeMillis()
             val pythonCode = """
 import json
 from legendary.core import LegendaryCore
@@ -684,40 +688,156 @@ except Exception as e:
 """
 
             Timber.tag("Epic").d("Executing Python code to fetch manifest...")
-            val result = EpicPythonBridge.executePythonCode(context, pythonCode)
-            Timber.tag("Epic").d("Python execution completed: success=${result.isSuccess}")
+            val pythonResult = EpicPythonBridge.executePythonCode(context, pythonCode)
+            val pythonTime = System.currentTimeMillis() - pythonStartTime
 
-            if (result.isSuccess) {
-                val output = result.getOrNull() ?: ""
-                Timber.tag("Epic").d("Python output: $output")
-
-                // Parse last line of output (final status)
+            var pythonSize = 0L
+            if (pythonResult.isSuccess) {
+                val output = pythonResult.getOrNull() ?: ""
                 val lines = output.trim().lines()
-                if (lines.isEmpty()) {
-                    Timber.e("Empty output from manifest fetch")
-                    return@withContext 0L
+                if (lines.isNotEmpty()) {
+                    val lastLine = lines.last()
+                    try {
+                        val json = JSONObject(lastLine.trim())
+                        if (json.has("error")) {
+                            Timber.tag("Epic").w("Python manifest fetch error: ${json.getString("error")}")
+                        } else {
+                            pythonSize = json.optLong("install_size", 0L)
+                            Timber.tag("Epic").d("Python result: $pythonSize bytes in ${pythonTime}ms")
+                        }
+                    } catch (e: Exception) {
+                        Timber.tag("Epic").w(e, "Failed to parse Python output")
+                    }
                 }
-
-                val lastLine = lines.last()
-                Timber.tag("Epic").d("Parsing final output line: $lastLine")
-                val json = JSONObject(lastLine.trim())
-
-                if (json.has("error")) {
-                    val error = json.getString("error")
-                    val traceback = json.optString("traceback", "No traceback")
-                    Timber.e("Failed to fetch install size: $error\nTraceback: $traceback")
-                    return@withContext 0L
-                }
-
-                val installSize = json.optLong("install_size", 0L)
-                Timber.tag("Epic").i("Fetched install size for $appName: $installSize bytes (${installSize / 1_000_000_000.0} GB)")
-                return@withContext installSize
             } else {
-                Timber.e(result.exceptionOrNull(), "Failed to execute manifest fetch for $appName")
+                Timber.tag("Epic").w(pythonResult.exceptionOrNull(), "Python manifest fetch failed")
+            }
+
+            // ========== KOTLIN IMPLEMENTATION (using Epic API + Kotlin parser) ==========
+            val kotlinStartTime = System.currentTimeMillis()
+            var kotlinSize = 0L
+
+            try {
+                // Get the game info to get namespace and catalogItemId
+                val game = getGameByAppName(appName)
+                if (game == null) {
+                    Timber.tag("Epic").w("Game not found in database: $appName")
+                } else {
+                    // Get credentials
+                    val credentials = EpicAuthManager.getStoredCredentials(context)
+                    if (credentials.isFailure) {
+                        Timber.tag("Epic").w("No credentials for Kotlin manifest fetch")
+                    } else {
+                        val accessToken = credentials.getOrNull()?.accessToken
+                        if (accessToken.isNullOrEmpty()) {
+                            Timber.tag("Epic").w("No access token for Kotlin manifest fetch")
+                        } else {
+                            // Fetch manifest URL from Epic API
+                            val manifestUrl = "${EpicConstants.EPIC_LAUNCHER_API_URL}/launcher/api/public/assets/v2/platform" +
+                                    "/Windows/namespace/${game.namespace}/catalogItem/${game.id}/app" +
+                                    "/${game.appName}/label/Live"
+
+                            Timber.tag("Epic").d("Fetching manifest from: $manifestUrl")
+
+                            val request = Request.Builder()
+                                .url(manifestUrl)
+                                .header("Authorization", "Bearer $accessToken")
+                                .header("User-Agent", EpicConstants.EPIC_USER_AGENT)
+                                .get()
+                                .build()
+
+                            val response = httpClient.newCall(request).execute()
+
+                            if (response.isSuccessful) {
+                                val body = response.body?.string()
+                                if (!body.isNullOrEmpty()) {
+                                    val manifestJson = JSONObject(body)
+                                    val elements = manifestJson.optJSONArray("elements")
+
+                                    if (elements != null && elements.length() > 0) {
+                                        val element = elements.getJSONObject(0)
+                                        val manifests = element.optJSONArray("manifests")
+
+                                        if (manifests != null && manifests.length() > 0) {
+                                            // Download the actual manifest binary
+                                            val manifestUri = manifests.getJSONObject(0).getString("uri")
+
+                                            Timber.tag("Epic").d("Downloading manifest from: $manifestUri")
+
+                                            val manifestRequest = Request.Builder()
+                                                .url(manifestUri)
+                                                .get()
+                                                .build()
+
+                                            val manifestResponse = httpClient.newCall(manifestRequest).execute()
+
+                                            if (manifestResponse.isSuccessful) {
+                                                val manifestBytes = manifestResponse.body?.bytes()
+
+                                                if (manifestBytes != null) {
+                                                    // Parse with Kotlin parser
+                                                    val manifest = app.gamenative.service.epic.manifest.EpicManifest.readAll(manifestBytes)
+
+                                                    // Calculate install size
+                                                    kotlinSize = manifest.fileManifestList?.elements?.sumOf { it.fileSize } ?: 0L
+
+                                                    val kotlinTime = System.currentTimeMillis() - kotlinStartTime
+                                                    Timber.tag("Epic").d("Kotlin result: $kotlinSize bytes in ${kotlinTime}ms")
+                                                } else {
+                                                    Timber.tag("Epic").w("Empty manifest bytes from Kotlin download")
+                                                }
+                                            } else {
+                                                Timber.tag("Epic").w("Failed to download manifest binary: ${manifestResponse.code}")
+                                            }
+                                        } else {
+                                            Timber.tag("Epic").w("No manifests in API response")
+                                        }
+                                    } else {
+                                        Timber.tag("Epic").w("No elements in manifest API response")
+                                    }
+                                } else {
+                                    Timber.tag("Epic").w("Empty manifest API response")
+                                }
+                            } else {
+                                Timber.tag("Epic").w("Manifest API request failed: ${response.code}")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag("Epic").w(e, "Kotlin manifest fetch failed")
+            }
+
+            // ========== COMPARISON ==========
+            if (pythonSize > 0 && kotlinSize > 0) {
+                val diff = kotlin.math.abs(pythonSize - kotlinSize)
+                val percentDiff = (diff.toDouble() / pythonSize.toDouble()) * 100.0
+
+                if (diff == 0L) {
+                    Timber.tag("Epic").i("✓ MATCH: Python and Kotlin results are identical!")
+                    Timber.tag("Epic").i("  Size: $pythonSize bytes (${pythonSize / 1_000_000_000.0} GB)")
+                } else {
+                    Timber.tag("Epic").w("⚠ MISMATCH: Python vs Kotlin differ by $diff bytes (${"%.2f".format(percentDiff)}%)")
+                    Timber.tag("Epic").w("  Python: $pythonSize bytes (${pythonSize / 1_000_000_000.0} GB)")
+                    Timber.tag("Epic").w("  Kotlin: $kotlinSize bytes (${kotlinSize / 1_000_000_000.0} GB)")
+                }
+                Timber.tag("Epic").d("Performance: Python ${pythonTime}ms vs Kotlin ${System.currentTimeMillis() - kotlinStartTime}ms")
+            } else if (pythonSize > 0) {
+                Timber.tag("Epic").i("Using Python result: $pythonSize bytes (Kotlin failed)")
+                return@withContext pythonSize
+            } else if (kotlinSize > 0) {
+                Timber.tag("Epic").i("Using Kotlin result: $kotlinSize bytes (Python failed)")
+                return@withContext kotlinSize
+            } else {
+                Timber.tag("Epic").e("Both Python and Kotlin manifest fetch failed")
                 return@withContext 0L
             }
+
+            // Prefer Kotlin result if both succeeded, otherwise use whichever worked
+            return@withContext if (kotlinSize > 0) kotlinSize else pythonSize
+
         } catch (e: Exception) {
-            Timber.e(e, "Exception fetching install size for $appName")
+            Timber.tag("Epic").e(e, "Exception fetching install size for $appName")
             0L
         }
     }

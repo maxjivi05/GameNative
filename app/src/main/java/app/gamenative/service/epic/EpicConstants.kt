@@ -40,6 +40,8 @@ object EpicConstants {
     const val EPIC_LIBRARY_API_URL = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items"
     // Epic CDN for game assets
     const val EPIC_CATALOG_API_URL = "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api"
+    // Epic Launcher API for manifests
+    const val EPIC_LAUNCHER_API_URL = "https://launcher-public-service-prod06.ol.epicgames.com"
 
     // User Agent for API requests (Legendary CLI)
     val EPIC_USER_AGENT = "Legendary/${getBuildVersion()} (GameNative)"
