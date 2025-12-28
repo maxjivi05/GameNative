@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -584,6 +585,24 @@ class EpicManager @Inject constructor(
             } catch (e: Exception) {
                 Timber.e(e, "Failed to get Epic game by ID: $gameId")
                 null
+            }
+        }
+    }
+
+    suspend fun getDLCForTitle(appId: String): List<EpicGame> {
+        return withContext(Dispatchers.IO) {
+            try {
+                Timber.tag("Epic").i("Getting DLC for appId: $appId")
+                val dlcTitles = epicGameDao.getAllDlcTitles().firstOrNull() ?:emptyList()
+                if (dlcTitles.isNotEmpty()) {
+                    for (title in dlcTitles) {
+                        Timber.tag("Epic").i("ALL DLCs: ${title.title} \nBase Game: ${title.baseGameAppName}")
+                    }
+                }
+                epicGameDao.getDLCForTitle(appId).firstOrNull() ?: emptyList()
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to get DLC for app name: $appId")
+                emptyList()
             }
         }
     }

@@ -212,8 +212,18 @@ class EpicService : Service() {
             }
         }
 
+        fun getDLCForGame(appId: String): List<EpicGame> {
+            return runBlocking {
+                getInstance()?.epicManager?.getDLCForTitle(appId) ?: emptyList()
+            }
+        }
+
         suspend fun updateEpicGame(game: EpicGame) {
             getInstance()?.epicManager?.updateGame(game)
+        }
+
+        suspend fun getDLCForTitle(appName: String): List<EpicGame> {
+            return getInstance()?.epicManager?.getDLCForTitle(appName) ?: emptyList()
         }
 
         fun isGameInstalled(appName: String): Boolean {

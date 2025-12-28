@@ -49,6 +49,12 @@ interface EpicGameDao {
     @Query("SELECT * FROM epic_games WHERE is_installed = :isInstalled ORDER BY title ASC")
     fun getByInstallStatus(isInstalled: Boolean): Flow<List<EpicGame>>
 
+    @Query("SELECT * FROM epic_games WHERE base_game_app_name = :appId")
+    fun getDLCForTitle(appId: String): Flow<List<EpicGame>>
+
+    @Query("SELECT * FROM epic_games WHERE base_game_app_name IS NOT NULL AND is_dlc = true")
+    fun getAllDlcTitles(): Flow<List<EpicGame>>
+
     @Query("SELECT * FROM epic_games WHERE title LIKE '%' || :searchQuery || '%' ORDER BY title ASC")
     fun searchByTitle(searchQuery: String): Flow<List<EpicGame>>
 

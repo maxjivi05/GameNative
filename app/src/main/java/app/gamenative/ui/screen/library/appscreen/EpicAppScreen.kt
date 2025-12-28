@@ -155,7 +155,15 @@ class EpicAppScreen : BaseAppScreen() {
 
         val epicGame = remember(appId, refreshTrigger) {
             val game = EpicService.getEpicGameOf(appName)
+
             if (game != null) {
+                val dlcTitles = EpicService.getDLCForGame(game.id)
+                if (dlcTitles.isNotEmpty()) {
+                    for (title in dlcTitles) {
+                        Timber.tag("Epic").i("DLC Found: ${title.title}")
+                    }
+                }
+
                 Timber.tag("Epic").i("""
                     |╔═══════════════════════════════════════════════════════════════════════════════
                     |║ EPIC GAME DATABASE ENTRY
@@ -179,7 +187,7 @@ class EpicAppScreen : BaseAppScreen() {
                     |║   Executable: ${game.executable.ifEmpty { "N/A" }}
                     |║   Download Size: ${game.downloadSize} bytes (${game.downloadSize / 1_000_000_000.0} GB)
                     |║   Install Size: ${game.installSize} bytes (${game.installSize / 1_000_000_000.0} GB)
-                         baseGameAppName: ${game.baseGameAppName}
+                    |║   Base Game App Name: ${game.baseGameAppName.ifEmpty { "N/A" }}
                     |║
                     |║ ARTWORK
                     |║   Cover (Tall): ${game.artCover.ifEmpty { "N/A" }}
