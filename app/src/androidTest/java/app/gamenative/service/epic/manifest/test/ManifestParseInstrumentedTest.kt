@@ -5,11 +5,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.gamenative.service.epic.manifest.ManifestTestSerializer
 import app.gamenative.service.epic.manifest.ManifestUtils
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * Android instrumented test for manifest parsing
@@ -21,7 +21,7 @@ class ManifestParseInstrumentedTest {
 
     private fun getManifestBytes(): ByteArray {
         // Read manifest from test assets
-        val inputStream = getContext().assets.open("test-manifest.json")
+        val inputStream = getContext().assets.open("test-v3-manifest.json")
         return inputStream.readBytes()
     }
 
@@ -41,13 +41,15 @@ class ManifestParseInstrumentedTest {
         // Check expected values from Python output
         println("🔍 Kotlin vs Python Parsing Comparison:")
         println("  Checking appName...")
-        assertEquals("App name should match", "EpicGamesLauncher", manifest.meta?.appName)
+        assertEquals("App name should match", "Quail", manifest.meta?.appName)
         println("    ✅ appName matches")
 
         println("  Checking buildVersion...")
-        assertEquals("Build version should match",
+        assertEquals(
+            "Build version should match",
             "2.9.2-2874913+++Portal+Release-Live-Windows",
-            manifest.meta?.buildVersion)
+            manifest.meta?.buildVersion,
+        )
         println("    ✅ buildVersion matches")
 
         println("  Checking manifest version...")
@@ -119,9 +121,11 @@ class ManifestParseInstrumentedTest {
         val firstFile = manifest.fileManifestList?.elements?.firstOrNull()
         assertNotNull("Should have files", firstFile)
 
-        assertEquals("First file should match",
+        assertEquals(
+            "First file should match",
             "Engine/Binaries/ThirdParty/CEF3/Win64/d3dcompiler_43.dll",
-            firstFile?.filename)
+            firstFile?.filename,
+        )
         assertEquals("File size should match", 2106216L, firstFile?.fileSize)
         assertEquals("Chunk parts count should match", 3, firstFile?.chunkParts?.size)
 
@@ -159,9 +163,11 @@ class ManifestParseInstrumentedTest {
         val firstChunk = manifest.chunkDataList?.elements?.firstOrNull()
         assertNotNull("Should have chunks", firstChunk)
 
-        assertEquals("First chunk GUID should match",
+        assertEquals(
+            "First chunk GUID should match",
             "80cf8543-4a18c0dc-4bd48290-9f40df8d",
-            firstChunk?.guidStr)
+            firstChunk?.guidStr,
+        )
         assertEquals("Chunk size should match", 406716L, firstChunk?.fileSize)
         assertEquals("Group number should match", 87, firstChunk?.groupNum)
 

@@ -5,12 +5,12 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.gamenative.service.epic.manifest.ManifestTestSerializer
 import app.gamenative.service.epic.manifest.ManifestUtils
+import java.io.File
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import timber.log.Timber
-import java.io.File
 
 /**
  * Compares Kotlin and Python manifest parsing implementations
@@ -21,7 +21,7 @@ class ManifestPythonComparisonTest {
     private fun getContext(): Context = InstrumentationRegistry.getInstrumentation().targetContext
 
     private fun getManifestBytes(): ByteArray {
-        val inputStream = InstrumentationRegistry.getInstrumentation().context.assets.open("test-manifest.json")
+        val inputStream = InstrumentationRegistry.getInstrumentation().context.assets.open("test-v3-manifest.json")
         return inputStream.readBytes()
     }
 
@@ -41,7 +41,7 @@ class ManifestPythonComparisonTest {
                 "python3",
                 pythonScript.absolutePath,
                 manifestFile.absolutePath,
-                "summary"
+                "summary",
             ).redirectErrorStream(true)
                 .start()
 

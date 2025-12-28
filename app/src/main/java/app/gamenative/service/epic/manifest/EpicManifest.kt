@@ -74,7 +74,7 @@ sealed class EpicManifest {
     fun getChunkDir(): String {
         return when {
             version >= 15 -> "ChunksV4"
-            version >= 6 -> "ChunksV3"
+            version >= 6 -> "ChunksV3" // TODO: Fix V3Chunking - Currently this one is problematic
             version >= 3 -> "ChunksV2"
             else -> "Chunks"
         }
@@ -360,6 +360,7 @@ data class ChunkInfo(
 
     companion object {
         private fun getChunkDir(version: Int): String {
+            Timber.tag("EpicManifest").i("Found Manifest version: $version")
             return when {
                 version >= 15 -> "ChunksV4"
                 version >= 6 -> "ChunksV3"

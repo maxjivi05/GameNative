@@ -33,12 +33,10 @@ import timber.log.Timber
 
  /**
   * TODO: Test Pausing and Cancelling Downloads
-  * TODO: Add the fix from GOG Service to select the correct .exe
-  * TODO: Ensure we give a list of .exes for the ContainerConfigDialog
+  * TODO: DLC Support
   * TODO: Clean up all the code in the Epic files
+  * TODO: Ensure games install over multiple manifest types
   * TODO: Remove all the Python code and put in the basic information regarding Cloud Saves.
-  * TODO: Fix the issue with URLs. Currently we assume a basic URL and then dynamically add to it.
-  * TODO: We should be bringing in function that brings back a URL potentially instead
  */
 @AndroidEntryPoint
 class EpicService : Service() {

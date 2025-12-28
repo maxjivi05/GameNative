@@ -35,11 +35,9 @@ import timber.log.Timber
 import java.io.File
 import java.util.Locale
 
-/**
- * Epic-specific implementation of BaseAppScreen
- * Handles Epic Games with integration to the Legendary CLI backend
- * ! This is incomplete and requires the full implementation of the Epic Service before we touch this.
- */
+// TODO: Understand how we should download the DLC and show that in the UI
+// TODO: Wait until GameManager PR has been finished and merged so we can utilise it.
+
 class EpicAppScreen : BaseAppScreen() {
 
     companion object {
@@ -89,10 +87,6 @@ class EpicAppScreen : BaseAppScreen() {
             return result
         }
 
-        /**
-         * Formats bytes into a human-readable string (KB, MB, GB).
-         * Uses binary units (1024 base).
-         */
         private fun formatBytes(bytes: Long): String {
             val kb = 1024.0
             val mb = kb * 1024

@@ -3,6 +3,15 @@ package app.gamenative.service.epic
 import android.content.Context
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.EpicGame
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.security.MessageDigest
+import java.util.concurrent.TimeUnit
+import java.util.zip.Inflater
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -11,15 +20,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.File
-import java.io.ByteArrayInputStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.security.MessageDigest
-import java.util.concurrent.TimeUnit
-import java.util.zip.Inflater
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * EpicDownloadManager handles downloading Epic games using Kotlin/OkHttp
@@ -38,7 +38,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class EpicDownloadManager @Inject constructor(
-    private val epicManager: EpicManager
+    private val epicManager: EpicManager,
 ) {
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -65,7 +65,7 @@ class EpicDownloadManager @Inject constructor(
         context: Context,
         game: EpicGame,
         installPath: String,
-        downloadInfo: DownloadInfo
+        downloadInfo: DownloadInfo,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Timber.tag("Epic").i("Starting download for ${game.title} to $installPath")
@@ -75,16 +75,16 @@ class EpicDownloadManager @Inject constructor(
                 context,
                 game.namespace,
                 game.id,
-                game.appName
+                game.appName,
             )
             if (manifestResult.isFailure) {
                 return@withContext Result.failure(
-                    manifestResult.exceptionOrNull() ?: Exception("Failed to fetch manifest")
+                    manifestResult.exceptionOrNull() ?: Exception("Failed to fetch manifest"),
                 )
             }
 
             val manifestData = manifestResult.getOrNull()!!
-            val cdnUrls = manifestData.cdnUrls
+            val cdnUrls = manifestData.cdnUrls.filter { !it.baseUrl.startsWith("https://cloudflare.epicgamescdn.com") }
             Timber.tag("Epic").d("Manifest fetched with ${cdnUrls.size} CDN URLs, parsing...")
 
             // Step 2: Parse manifest binary to get chunks and files
@@ -100,16 +100,21 @@ class EpicDownloadManager @Inject constructor(
             val files = fileManifestList.elements
             val chunkDir = manifest.getChunkDir()
 
+
+
             val totalSize = files.sumOf { it.fileSize }
             val chunkCount = chunks.size
             val fileCount = files.size
 
-            Timber.tag("Epic").i("""
+            Timber.tag("Epic").i(
+                """
                 |Download prepared:
                 |  Total size: ${totalSize / 1_000_000_000.0} GB
                 |  Chunks: $chunkCount
                 |  Files: $fileCount
-            """.trimMargin())
+                |  ChunkDir: $chunkDir
+                """.trimMargin(),
+            )
 
             downloadInfo.setTotalExpectedBytes(totalSize)
             downloadInfo.updateStatusMessage("Downloading chunks...")
@@ -118,14 +123,16 @@ class EpicDownloadManager @Inject constructor(
             val chunkCacheDir = File(installPath, ".chunks")
             chunkCacheDir.mkdirs()
 
-            Timber.tag("Epic").d("""
+            Timber.tag("Epic").d(
+                """
                 |=== NATIVE KOTLIN MANIFEST DATA ===
                 |CDN URLs (${cdnUrls.size}):
                 |${cdnUrls.joinToString("\n") { "  - ${it.baseUrl}" }}
                 |Chunks: ${chunks.size}
                 |Files: ${files.size}
                 |==================================
-            """.trimMargin())
+                """.trimMargin(),
+            )
 
             // Download chunks in batches to avoid overwhelming the system
             chunks.chunked(MAX_PARALLEL_DOWNLOADS).forEach { chunkBatch ->
@@ -144,7 +151,7 @@ class EpicDownloadManager @Inject constructor(
                 // Check if any download failed
                 results.firstOrNull { it.isFailure }?.let { failedResult ->
                     return@withContext Result.failure(
-                        failedResult.exceptionOrNull() ?: Exception("Failed to download chunk")
+                        failedResult.exceptionOrNull() ?: Exception("Failed to download chunk"),
                     )
                 }
             }
@@ -161,7 +168,7 @@ class EpicDownloadManager @Inject constructor(
                 val assembleResult = assembleFile(fileManifest, chunkCacheDir, installDir)
                 if (assembleResult.isFailure) {
                     return@withContext Result.failure(
-                        assembleResult.exceptionOrNull() ?: Exception("Failed to assemble file")
+                        assembleResult.exceptionOrNull() ?: Exception("Failed to assemble file"),
                     )
                 }
             }
@@ -192,7 +199,7 @@ class EpicDownloadManager @Inject constructor(
         chunkCacheDir: File,
         chunkDir: String,
         cdnUrls: List<EpicManager.CdnUrl>,
-        downloadInfo: DownloadInfo
+        downloadInfo: DownloadInfo,
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             val chunkFile = File(chunkCacheDir, "${chunk.guidStr}.chunk")
@@ -208,6 +215,9 @@ class EpicDownloadManager @Inject constructor(
             // Get chunk path for downloading
             val chunkPath = chunk.getPath(chunkDir)
 
+            Timber.tag("EpicManifest").i("Chunk Dir: $chunkPath")
+
+
             // Try each CDN base URL until one succeeds
             var lastException: Exception? = null
             for (cdnUrl in cdnUrls) {
@@ -221,12 +231,14 @@ class EpicDownloadManager @Inject constructor(
                         .url(url)
                         .build()
 
-                    Timber.tag("Epic").d("""
+                    Timber.tag("Epic").d(
+                        """
                         |NATIVE Chunk download request:
                         |  URL: ${request.url}
                         |  Method: ${request.method}
                         |  Headers: ${request.headers}
-                    """.trimMargin())
+                        """.trimMargin(),
+                    )
 
                     val response = okHttpClient.newCall(request).execute()
 
@@ -421,7 +433,7 @@ class EpicDownloadManager @Inject constructor(
     private suspend fun assembleFile(
         fileManifest: app.gamenative.service.epic.manifest.FileManifest,
         chunkCacheDir: File,
-        installDir: File
+        installDir: File,
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             val outputFile = File(installDir, fileManifest.filename)
