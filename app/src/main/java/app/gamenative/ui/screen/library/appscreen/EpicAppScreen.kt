@@ -127,15 +127,24 @@ class EpicAppScreen : BaseAppScreen() {
         // Fetch install size from manifest if not already available
         LaunchedEffect(appId) {
             val game = EpicService.getEpicGameOf(appName)
-            if (game != null && game.installSize == 0L && !game.isInstalled) {
+            if (
+                game != null &&
+                !game.isInstalled &&
+                (game.installSize == 0L || game.downloadSize == 0L || game.downloadSize > game.installSize)
+            ) {
                 Timber.tag("Epic").d("Install size not available for ${game.title}, fetching from manifest...")
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     try {
-                        val size = EpicService.fetchInstallSize(context, game.appName)
-                        if (size > 0L) {
-                            Timber.tag("Epic").i("Fetched install size for ${game.title}: $size bytes")
+                        val sizes = EpicService.fetchManifestSizes(context, game.appName)
+                        if (sizes.installSize > 0L || sizes.downloadSize > 0L) {
+                            Timber.tag("Epic").i(
+                                "Fetched sizes for ${game.title}: install=${sizes.installSize} download=${sizes.downloadSize}",
+                            )
                             // Update database with fetched size
-                            val updatedGame = game.copy(installSize = size, downloadSize = size)
+                            val updatedGame = game.copy(
+                                installSize = sizes.installSize,
+                                downloadSize = sizes.downloadSize,
+                            )
                             EpicService.updateEpicGame(updatedGame)
                             // Trigger refresh to show updated size
                             refreshTrigger++
@@ -238,8 +247,12 @@ class EpicAppScreen : BaseAppScreen() {
             formatBytes(game.installSize)
         } else null
 
-        val sizeFromStore = if (game != null && game.downloadSize > 0) {
-            formatBytes(game.downloadSize)
+        val sizeFromStore = if (game != null) {
+            when {
+                game.installSize > 0 -> formatBytes(game.installSize)
+                game.downloadSize > 0 -> formatBytes(game.downloadSize)
+                else -> null
+            }
         } else null
 
         // Parse Epic's ISO 8601 release date string to Unix timestamp
@@ -699,12 +712,10 @@ class EpicAppScreen : BaseAppScreen() {
                 EpicService.getEpicGameOf(appId.removePrefix("EPIC_"))
             }
 
-            val downloadSizeGB = (epicGame?.downloadSize ?: 0L) / 1_000_000_000.0
-            val sizeText = if (downloadSizeGB > 0) {
-                String.format(Locale.US, "%.2f GB", downloadSizeGB)
-            } else {
-                "Unknown size"
-            }
+            val downloadBytes = epicGame?.downloadSize ?: 0L
+            val installBytes = epicGame?.installSize ?: 0L
+            val downloadText = if (downloadBytes > 0L) formatBytes(downloadBytes) else "Unknown"
+            val installText = if (installBytes > 0L) formatBytes(installBytes) else "Unknown"
 
             AlertDialog(
                 onDismissRequest = {
@@ -712,7 +723,14 @@ class EpicAppScreen : BaseAppScreen() {
                 },
                 title = { Text(stringResource(R.string.epic_install_game_title)) },
                 text = {
-                    Text(stringResource(R.string.epic_install_game_message, libraryItem.name, sizeText))
+                    Text(
+                        stringResource(
+                            R.string.epic_install_game_message,
+                            libraryItem.name,
+                            downloadText,
+                            installText,
+                        ),
+                    )
                 },
                 confirmButton = {
                     TextButton(

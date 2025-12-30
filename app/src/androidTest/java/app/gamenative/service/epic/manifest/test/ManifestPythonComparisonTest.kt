@@ -34,7 +34,8 @@ class ManifestPythonComparisonTest {
     fun testCompareWithPython() {
         val testManifests = listOf(
             "test-manifest.json" to "test-manifest.expected.json",
-            "test-v3-manifest.json" to "test-v3-manifest.expected.json"
+            "test-v3-manifest.json" to "test-v3-manifest.expected.json",
+            "binary-control-file.manifest" to "binary-control-file.expected.json"
         )
 
         testManifests.forEach { (manifestAsset, expectedAsset) ->

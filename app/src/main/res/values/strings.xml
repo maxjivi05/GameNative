@@ -47,7 +47,7 @@
     <string name="epic_uninstall_game_title">Uninstall Game</string>
     <string name="epic_uninstall_game_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
     <string name="epic_install_game_title">Download Game</string>
-    <string name="epic_install_game_message">Download %1$s (%2$s)? Make sure you have enough storage space.</string>
+    <string name="epic_install_game_message">Download %1$s?\nDownload: %2$s, Install: %3$s.\nMake sure you have enough storage space.</string>
     <string name="steam_never">Never</string>
     <string name="steam_continue">Continue</string>
     <string name="header_img_desc">App header image</string>
@@ -961,5 +961,4 @@
     <string name="gog_login_cancel">Cancel</string>
     <string name="gog_login_browser_error">Could not open browser</string>
 </resources>
-
 

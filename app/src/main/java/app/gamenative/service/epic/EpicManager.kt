@@ -112,6 +112,11 @@ class EpicManager @Inject constructor(
         val stateToken: String?,
     )
 
+    data class ManifestSizes(
+        val installSize: Long,
+        val downloadSize: Long,
+    )
+
     // Usually consists of DieselGameBox and DieselGameBoxTall that we can use. We should use DieselGameBoxtall for capsule & the other for everything else.
     data class EpicKeyImage(
         val type: String,
@@ -853,20 +858,20 @@ class EpicManager @Inject constructor(
      * Manifest is small (~500KB-1MB) and contains all file metadata
      * Returns size in bytes, or 0 if failed
      */
-    suspend fun fetchInstallSize(context: Context, appName: String): Long = withContext(Dispatchers.IO) {
+    suspend fun fetchManifestSizes(context: Context, appName: String): ManifestSizes = withContext(Dispatchers.IO) {
         try {
             // Get the game info to get namespace and catalogItemId
             val game = getGameByAppName(appName)
             if (game == null) {
                 Timber.tag("Epic").w("Game not found in database: $appName")
-                return@withContext 0L
+                return@withContext ManifestSizes(installSize = 0L, downloadSize = 0L)
             }
 
             // Fetch manifest using shared function
             val manifestResult = fetchManifestFromEpic(context, game.namespace, game.id, game.appName)
             if (manifestResult.isFailure) {
                 Timber.tag("Epic").w("Failed to fetch manifest: ${manifestResult.exceptionOrNull()?.message}")
-                return@withContext 0L
+                return@withContext ManifestSizes(installSize = 0L, downloadSize = 0L)
             }
 
             val manifestData = manifestResult.getOrNull()!!
@@ -876,12 +881,22 @@ class EpicManager @Inject constructor(
 
             // Calculate install size
             val installSize = manifest.fileManifestList?.elements?.sumOf { it.fileSize } ?: 0L
+            val downloadSize = app.gamenative.service.epic.manifest.ManifestUtils.getTotalDownloadSize(manifest)
+            Timber.tag("Epic").d(
+                "Manifest stats for $appName: version=${manifest.version}, featureLevel=${manifest.meta?.featureLevel}, " +
+                    "buildVersion=${manifest.meta?.buildVersion}, buildId=${manifest.meta?.buildId}",
+            )
+            Timber.tag("Epic").d(
+                "Manifest stats for $appName: files=${manifest.fileManifestList?.count}, " +
+                    "chunks=${manifest.chunkDataList?.count}",
+            )
             Timber.tag("Epic").d("Install size for $appName: $installSize bytes")
+            Timber.tag("Epic").d("Download size for $appName: $downloadSize bytes")
 
-            return@withContext installSize
+            return@withContext ManifestSizes(installSize = installSize, downloadSize = downloadSize)
         } catch (e: Exception) {
             Timber.tag("Epic").e(e, "Exception fetching install size for $appName")
-            0L
+            ManifestSizes(installSize = 0L, downloadSize = 0L)
         }
     }
 }

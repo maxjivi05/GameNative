@@ -329,8 +329,9 @@ class EpicService : Service() {
                 ?: Result.failure(Exception("Service not available"))
         }
 
-        suspend fun fetchInstallSize(context: Context, appName: String): Long {
-            return getInstance()?.epicManager?.fetchInstallSize(context, appName) ?: 0L
+        suspend fun fetchManifestSizes(context: Context, appName: String): EpicManager.ManifestSizes {
+            return getInstance()?.epicManager?.fetchManifestSizes(context, appName)
+                ?: EpicManager.ManifestSizes(installSize = 0L, downloadSize = 0L)
         }
 
         fun downloadGame(context: Context, appName: String, installPath: String): Result<DownloadInfo> {
