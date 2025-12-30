@@ -227,8 +227,10 @@ class EpicDownloadManager @Inject constructor(
                     val url = "${cdnUrl.baseUrl}${cdnUrl.cloudDir}/$chunkPath"
                     Timber.tag("Epic").d("Downloading chunk from: $url")
 
+                    // TODO: Check whether or not we should provide the user agent.
                     val request = Request.Builder()
                         .url(url)
+                        .header("User-Agent", "UELauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit")
                         .build()
 
                     Timber.tag("Epic").d(

@@ -67,11 +67,12 @@ class JsonManifestParser {
             for (guidStr in guids) {
                 val chunk = ChunkInfo(manifestVersion = manifestVersion)
                 chunk.guid = guidFromJson(guidStr)
-                chunk.fileSize = blobToNum(fileSizeList.optString(guidStr, "0")).toLong()
-                chunk.hash = blobToNum(hashList.optString(guidStr, "0")).toULong()
+                chunk.fileSize = blobToLong(fileSizeList.optString(guidStr, "0"))
+                chunk.hash = blobToULong(hashList.optString(guidStr, "0"))
                 chunk.shaHash = hexStringToByteArray(shaList.optString(guidStr, ""))
                 chunk.groupNum = blobToNum(groupList.optString(guidStr, "0"))
                 chunk.windowSize = 1024 * 1024 // Default 1MB window size for JSON manifests
+                chunk.useHashPrefixForV3 = false
 
                 cdl.elements.add(chunk)
             }
@@ -160,6 +161,50 @@ class JsonManifestParser {
             while (i < blobStr.length) {
                 val byteStr = blobStr.substring(i, minOf(i + 3, blobStr.length))
                 val byteVal = byteStr.toIntOrNull() ?: 0
+                num = num or (byteVal shl shift)
+                shift += 8
+                i += 3
+            }
+
+            return num
+        }
+
+        /**
+         * Convert Epic's blob number format to long
+         * Format: Each 3 digits represents a byte value (000-255), little endian
+         */
+        private fun blobToLong(blobStr: String): Long {
+            if (blobStr.isEmpty()) return 0L
+
+            var num = 0L
+            var shift = 0
+
+            var i = 0
+            while (i < blobStr.length) {
+                val byteStr = blobStr.substring(i, minOf(i + 3, blobStr.length))
+                val byteVal = byteStr.toLongOrNull() ?: 0L
+                num = num or (byteVal shl shift)
+                shift += 8
+                i += 3
+            }
+
+            return num
+        }
+
+        /**
+         * Convert Epic's blob number format to unsigned long
+         * Format: Each 3 digits represents a byte value (000-255), little endian
+         */
+        private fun blobToULong(blobStr: String): ULong {
+            if (blobStr.isEmpty()) return 0u
+
+            var num = 0uL
+            var shift = 0
+
+            var i = 0
+            while (i < blobStr.length) {
+                val byteStr = blobStr.substring(i, minOf(i + 3, blobStr.length))
+                val byteVal = byteStr.toULongOrNull() ?: 0uL
                 num = num or (byteVal shl shift)
                 shift += 8
                 i += 3

@@ -210,12 +210,23 @@ data class ComparisonResult(
  */
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
-        println("Usage: ManifestComparisonTest <manifest_file> [<manifest_file2> ...]")
-        println()
-        println("Examples:")
-        println("  Single file: ManifestComparisonTest game.manifest")
-        println("  Multiple files: ManifestComparisonTest *.manifest")
-        println("  Directory: ManifestComparisonTest /path/to/manifests/*.manifest")
+        val defaultManifests = listOf(
+            File("app/src/androidTest/assets/test-manifest.json"),
+            File("app/src/androidTest/assets/test-v3-manifest.json")
+        ).filter { it.exists() && it.isFile }
+
+        if (defaultManifests.isEmpty()) {
+            println("Usage: ManifestComparisonTest <manifest_file> [<manifest_file2> ...]")
+            println()
+            println("Examples:")
+            println("  Single file: ManifestComparisonTest game.manifest")
+            println("  Multiple files: ManifestComparisonTest *.manifest")
+            println("  Directory: ManifestComparisonTest /path/to/manifests/*.manifest")
+            return
+        }
+
+        println("No args provided; running default V4/V3 test manifests.")
+        ManifestComparisonTest.runTestSuite(defaultManifests)
         return
     }
 

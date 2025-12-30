@@ -656,17 +656,17 @@ class EpicManager @Inject constructor(
             Timber.tag("Epic").i("Starting Epic library background sync...")
             Result.success(Unit)
 
-            // val result = refreshLibrary(context)
+             val result = refreshLibrary(context)
 
-            // if (result.isSuccess) {
-            //     val count = result.getOrNull() ?: 0
-            //     Timber.tag("Epic").i("Background sync completed: $count games synced")
-            //     Result.success(Unit)
-            // } else {
-            //     val error = result.exceptionOrNull()
-            //     Timber.e(error, "Background sync failed: ${error?.message}")
-            //     Result.failure(error ?: Exception("Background sync failed"))
-            // }
+             if (result.isSuccess) {
+                 val count = result.getOrNull() ?: 0
+                 Timber.tag("Epic").i("Background sync completed: $count games synced")
+                 Result.success(Unit)
+             } else {
+                 val error = result.exceptionOrNull()
+                 Timber.e(error, "Background sync failed: ${error?.message}")
+                 Result.failure(error ?: Exception("Background sync failed"))
+             }
         } catch (e: Exception) {
             Timber.e(e, "Failed to sync Epic library in background")
             Result.failure(e)

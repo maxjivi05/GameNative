@@ -334,6 +334,7 @@ data class ChunkInfo(
     var groupNum: Int = 0,
     var windowSize: Int = 0,
     var fileSize: Long = 0,
+    var useHashPrefixForV3: Boolean = false,
     private val manifestVersion: Int = 18
 ) {
     val guidStr: String by lazy {
@@ -349,13 +350,18 @@ data class ChunkInfo(
 
     /**
      * Get the download path for this chunk
+     * For V3/V4: subfolder is groupNum
      */
     fun getPath(chunkDir: String = getChunkDir(manifestVersion)): String {
         val guidHex = guid.joinToString("") { "%08X".format(it) }
-        // Format: ChunksV4/{groupNum:02d}/{hash:016X}_{guid}.chunk
-        // Convert ULong hash to 16-character uppercase hex string
         val hashHex = hash.toString(16).uppercase().padStart(16, '0')
-        return String.format("$chunkDir/%02d/%s_%s.chunk", groupNum, hashHex, guidHex)
+        val subfolder = when (chunkDir) {
+            "ChunksV3" -> {
+                if (useHashPrefixForV3) hashHex.substring(0, 2) else "%02d".format(groupNum)
+            }
+            else -> "%02d".format(groupNum)
+        }
+        return "$chunkDir/$subfolder/${hashHex}_$guidHex.chunk"
     }
 
     companion object {
