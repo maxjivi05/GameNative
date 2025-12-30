@@ -109,7 +109,7 @@ class JsonManifestParser {
 
                 // Parse chunk parts
                 val chunkParts = fileJson.optJSONArray("FileChunkParts") ?: JSONArray()
-                var fileOffset = 0
+                var fileOffset = 0L
 
                 for (j in 0 until chunkParts.length()) {
                     val partJson = chunkParts.getJSONObject(j)
@@ -122,10 +122,10 @@ class JsonManifestParser {
                     )
 
                     fm.chunkParts.add(part)
-                    fileOffset += part.size
+                    fileOffset += part.size.toLong()
                 }
 
-                fm.fileSize = fileOffset.toLong()
+                fm.fileSize = fileOffset
                 fml.elements.add(fm)
             }
 

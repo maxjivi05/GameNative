@@ -449,7 +449,7 @@ data class FileManifestList(
             // Chunk parts
             fml.elements.forEach { fm ->
                 val partCount = buffer.int
-                var fileOffset = 0
+                var fileOffset = 0L
 
                 repeat(partCount) {
                     val partStartPos = buffer.position()
@@ -463,7 +463,7 @@ data class FileManifestList(
                     )
 
                     fm.chunkParts.add(part)
-                    fileOffset += part.size
+                    fileOffset += part.size.toLong()
 
                     // Ensure we read the expected size
                     val partBytesRead = buffer.position() - partStartPos
@@ -472,7 +472,7 @@ data class FileManifestList(
                     }
                 }
 
-                fm.fileSize = fileOffset.toLong()
+                fm.fileSize = fileOffset
             }
 
             // Version 1+: MD5 hashes and MIME types
@@ -545,7 +545,7 @@ data class ChunkPart(
     val guid: IntArray,
     val offset: Int,
     val size: Int,
-    val fileOffset: Int
+    val fileOffset: Long
 ) {
     val guidStr: String by lazy {
         guid.joinToString("-") { "%08x".format(it) }
