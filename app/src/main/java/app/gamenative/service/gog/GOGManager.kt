@@ -787,11 +787,20 @@ class GOGManager @Inject constructor(
         return ""
     }
 
+    private fun findGOGInfoFile(directory: File, gameId: String? = null): File? {
+        return directory.listFiles()?.find {
+            it.isFile && if (gameId != null) {
+                it.name == "goggame-$gameId.info"
+            } else {
+                it.name.startsWith("goggame-") && it.name.endsWith(".info")
+            }
+        }
+    }
+
     private fun getMainExecutableFromGOGInfo(gameDir: File, installPath: String): Result<String> {
         return try {
-            val infoFile = gameDir.listFiles()?.find {
-                it.isFile && it.name.startsWith("goggame-") && it.name.endsWith(".info")
-            } ?: return Result.failure(Exception("GOG info file not found in ${gameDir.absolutePath}"))
+            val infoFile = findGOGInfoFile(gameDir)
+                ?: return Result.failure(Exception("GOG info file not found in ${gameDir.absolutePath}"))
 
             val content = infoFile.readText()
             val jsonObject = JSONObject(content)
@@ -923,12 +932,11 @@ class GOGManager @Inject constructor(
                 return@withContext null
             }
 
-            // Look for goggame-{gameId}.info file
-            val infoFileName = "goggame-$gameId.info"
-            val infoFile = File(installDir, infoFileName)
+            // Look for goggame-{gameId}.info file - check root first, then common subdirectories
+            var infoFile = findGOGInfoFile(installDir, gameId.toString())
 
-            if (!infoFile.exists()) {
-                Timber.w("Info file not found: ${infoFile.absolutePath}")
+            if (!infoFile!!.exists()) {
+                Timber.w("Info file not found for game $gameId in ${installDir.absolutePath}")
                 return@withContext null
             }
 
@@ -957,7 +965,7 @@ class GOGManager @Inject constructor(
         try {
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
             val infoJson = readInfoFile(appId, installPath)
-            
+
             if (infoJson == null) {
                 Timber.w("Cannot get save sync location: info file not found")
                 return@withContext null
@@ -1089,7 +1097,7 @@ class GOGManager @Inject constructor(
                 Timber.d("No save locations from API, using default for game $gameId")
                 val infoJson = readInfoFile(appId, installPath)
                 val clientId = infoJson?.optString("clientId", "") ?: ""
-                
+
                 if (clientId.isNotEmpty()) {
                     val defaultLocation = "%LocalAppData%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
                     locations = listOf(GOGCloudSavesLocationTemplate("__default", defaultLocation))
