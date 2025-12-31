@@ -10,6 +10,7 @@ import app.gamenative.data.GOGGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.NotificationHelper
+import app.gamenative.utils.ContainerUtils
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
@@ -284,6 +285,97 @@ class GOGService : Service() {
         suspend fun deleteGame(context: Context, libraryItem: LibraryItem): Result<Unit> {
             return getInstance()?.gogManager?.deleteGame(context, libraryItem)
                 ?: Result.failure(Exception("Service not available"))
+        }
+
+        /**
+         * Sync GOG cloud saves for a game
+         * @param context Android context
+         * @param appId Game app ID (e.g., "gog_123456")
+         * @param preferredAction Preferred sync action: "download", "upload", or "none"
+         * @return true if sync succeeded, false otherwise
+         */
+        suspend fun syncCloudSaves(context: Context, appId: String, preferredAction: String = "none"): Boolean = withContext(Dispatchers.IO) {
+            try {
+                val instance = getInstance() ?: return@withContext false
+
+                if (!GOGAuthManager.hasStoredCredentials(context)) {
+                    Timber.e("Cannot sync saves: not authenticated")
+                    return@withContext false
+                }
+
+                val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+
+                // Get game info
+                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                val game = instance.gogManager.getGameById(gameId.toString())
+                
+                if (game == null) {
+                    Timber.e("Game not found for appId: $appId")
+                    return@withContext false
+                }
+
+                // Get save directory paths (Android runs games through Wine, so always Windows)
+                val saveLocations = instance.gogManager.getSaveDirectoryPath(context, appId, game.title)
+                
+                if (saveLocations == null || saveLocations.isEmpty()) {
+                    Timber.w("No save locations found for game $appId (cloud saves may not be enabled)")
+                    return@withContext false
+                }
+
+                var allSucceeded = true
+
+                // Sync each save location
+                for (location in saveLocations) {
+                    try {
+                        // Get stored timestamp for this location
+                        val timestamp = instance.gogManager.getSyncTimestamp(appId, location.name)
+
+                        Timber.i("Syncing save location '${location.name}' for game $gameId (timestamp: $timestamp)")
+
+                        // Build command arguments (matching HeroicGamesLauncher format)
+                        val commandArgs = mutableListOf(
+                            "--auth-config-path", authConfigPath,
+                            "save-sync",
+                            location.location,
+                            gameId.toString(),
+                            "--os", "windows", // Android runs games through Wine
+                            "--ts", timestamp,
+                            "--name", location.name,
+                            "--prefered-action", preferredAction
+                        )
+
+                        // Execute sync command
+                        val result = GOGPythonBridge.executeCommand(*commandArgs.toTypedArray())
+
+                        if (result.isSuccess) {
+                            val output = result.getOrNull() ?: ""
+                            // Python save-sync returns timestamp on success, store it
+                            val newTimestamp = output.trim()
+                            if (newTimestamp.isNotEmpty() && newTimestamp != "0") {
+                                instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp)
+                            }
+                            Timber.i("Successfully synced save location '${location.name}' for game $gameId")
+                        } else {
+                            Timber.e(result.exceptionOrNull(), "Failed to sync save location '${location.name}' for game $gameId")
+                            allSucceeded = false
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "Exception syncing save location '${location.name}' for game $gameId")
+                        allSucceeded = false
+                    }
+                }
+
+                if (allSucceeded) {
+                    Timber.i("Cloud saves synced successfully for $appId")
+                    return@withContext true
+                } else {
+                    Timber.w("Some save locations failed to sync for $appId")
+                    return@withContext false
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to sync cloud saves for App ID: $appId")
+                return@withContext false
+            }
         }
     }
 

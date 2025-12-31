@@ -102,6 +102,116 @@ enum class PathType {
 
     companion object {
         val DEFAULT = SteamUserData
+        
+        /**
+         * Resolve GOG path variables (<?VARIABLE?>) to Windows environment variables
+         * Converts GOG-specific variables like <?INSTALL?> to actual paths or Windows env vars
+         * @param location Path template with GOG variables (e.g., "<?INSTALL?>/saves")
+         * @param installPath Game install path (for <?INSTALL?> variable)
+         * @return Path with GOG variables resolved (may still contain Windows env vars like %LOCALAPPDATA%)
+         */
+        fun resolveGOGPathVariables(location: String, installPath: String): String {
+            var resolved = location
+
+            // Map of GOG variables to their values
+            val variableMap = mapOf(
+                "INSTALL" to installPath,
+                "SAVED_GAMES" to "%USERPROFILE%/Saved Games",
+                "APPLICATION_DATA_LOCAL" to "%LOCALAPPDATA%",
+                "APPLICATION_DATA_LOCAL_LOW" to "%APPDATA%\\..\\LocalLow",
+                "APPLICATION_DATA_ROAMING" to "%APPDATA%",
+                "DOCUMENTS" to "%USERPROFILE%\\Documents"
+            )
+
+            // Find and replace <?VARIABLE?> patterns
+            val pattern = Regex("<\\?(\\w+)\\?>")
+            val matches = pattern.findAll(resolved)
+
+            for (match in matches) {
+                val variableName = match.groupValues[1]
+                val replacement = variableMap[variableName]
+                if (replacement != null) {
+                    resolved = resolved.replace(match.value, replacement)
+                    Timber.d("Resolved GOG variable <?$variableName?> to $replacement")
+                } else {
+                    Timber.w("Unknown GOG path variable: <?$variableName?>, leaving as-is")
+                }
+            }
+
+            return resolved
+        }
+
+        /**
+         * Convert a GOG Windows path with environment variables to an absolute device path
+         * Used for GOG cloud saves which provide Windows paths that need to be mapped to Wine prefix
+         * @param context Android context
+         * @param gogWindowsPath GOG-provided Windows path that may contain env vars like %LOCALAPPDATA%, %APPDATA%, %USERPROFILE%
+         * @return Absolute Unix path in Wine prefix
+         */
+        fun toAbsPathForGOG(context: Context, gogWindowsPath: String): String {
+            val imageFs = ImageFs.find(context)
+            val winePrefix = imageFs.rootDir.absolutePath
+            val user = ImageFs.USER
+
+            var mappedPath = gogWindowsPath
+
+            // Map Windows environment variables to their Wine prefix equivalents
+            // Handle %USERPROFILE% first to avoid partial replacements
+            if (mappedPath.contains("%USERPROFILE%/Saved Games") || mappedPath.contains("%USERPROFILE%\\Saved Games")) {
+                val savedGamesPath = Paths.get(
+                    winePrefix, ImageFs.WINEPREFIX,
+                    "/drive_c/users/", user, "Saved Games/"
+                ).toString()
+                mappedPath = mappedPath.replace("%USERPROFILE%/Saved Games", savedGamesPath)
+                    .replace("%USERPROFILE%\\Saved Games", savedGamesPath)
+            }
+            
+            if (mappedPath.contains("%USERPROFILE%/Documents") || mappedPath.contains("%USERPROFILE%\\Documents")) {
+                val documentsPath = Paths.get(
+                    winePrefix, ImageFs.WINEPREFIX,
+                    "/drive_c/users/", user, "Documents/"
+                ).toString()
+                mappedPath = mappedPath.replace("%USERPROFILE%/Documents", documentsPath)
+                    .replace("%USERPROFILE%\\Documents", documentsPath)
+            }
+
+            // Map standard Windows environment variables
+            mappedPath = mappedPath.replace("%LOCALAPPDATA%", 
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "AppData/Local/").toString())
+            mappedPath = mappedPath.replace("%APPDATA%", 
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "AppData/Roaming/").toString())
+            mappedPath = mappedPath.replace("%USERPROFILE%", 
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "").toString())
+
+            // Normalize path separators
+            mappedPath = mappedPath.replace("\\", "/")
+
+            // Build absolute path - if it doesn't start with drive_c, assume it's relative to drive_c
+            val absolutePath = when {
+                mappedPath.startsWith("drive_c/") || mappedPath.startsWith("/drive_c/") -> {
+                    val cleanPath = mappedPath.removePrefix("/")
+                    Paths.get(winePrefix, ImageFs.WINEPREFIX, cleanPath).toString()
+                }
+                mappedPath.startsWith(winePrefix) -> {
+                    // Already absolute
+                    mappedPath
+                }
+                else -> {
+                    // Relative path, assume it's in drive_c
+                    Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c", mappedPath).toString()
+                }
+            }
+
+            // Ensure path ends with / for directories
+            val finalPath = if (!absolutePath.endsWith("/") && !absolutePath.endsWith("\\")) {
+                "$absolutePath/"
+            } else {
+                absolutePath
+            }
+
+            return finalPath
+        }
+        
         fun from(keyValue: String?): PathType {
             return when (keyValue?.lowercase()) {
                 "%${GameInstall.name.lowercase()}%",

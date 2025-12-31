@@ -218,10 +218,10 @@ chaquopy {
 
 dependencies {
     implementation(libs.material)
-    
+
     // Chrome Custom Tabs for GOG OAuth
     implementation("androidx.browser:browser:1.8.0")
-    
+
     // JavaSteam
     val localBuild = false // Change to 'true' needed when building JavaSteam manually
     if (localBuild) {

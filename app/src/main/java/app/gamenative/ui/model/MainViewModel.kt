@@ -279,9 +279,35 @@ class MainViewModel @Inject constructor(
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
             Timber.tag("Exit").i("Got game id: $gameId")
             SteamService.notifyRunningProcesses()
-            SteamService.closeApp(gameId, isOffline.value) { prefix ->
-                PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
-            }.await()
+            
+            // Check if this is a GOG game and sync cloud saves
+            val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
+            if (gameSource == GameSource.GOG) {
+                Timber.tag("Exit").i("GOG Game detected for $appId — syncing cloud saves after close")
+                // Sync cloud saves (upload local changes to cloud)
+                // Run in background, don't block UI
+                viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        val syncSuccess = app.gamenative.service.gog.GOGService.syncCloudSaves(
+                            context = context,
+                            appId = appId,
+                            preferredAction = "upload"
+                        )
+                        if (syncSuccess) {
+                            Timber.i("GOG cloud save sync completed successfully for $appId")
+                        } else {
+                            Timber.w("GOG cloud save sync failed for $appId")
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "Exception syncing GOG cloud saves for $appId")
+                    }
+                }
+            } else {
+                // For Steam games, sync cloud saves
+                SteamService.closeApp(gameId, isOffline.value) { prefix ->
+                    PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
+                }.await()
+            }
 
             // Prompt user to save temporary container configuration if one was applied
             if (hadTemporaryOverride) {
