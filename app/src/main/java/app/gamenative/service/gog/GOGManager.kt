@@ -787,14 +787,39 @@ class GOGManager @Inject constructor(
         return ""
     }
 
-    private fun findGOGInfoFile(directory: File, gameId: String? = null): File? {
-        return directory.listFiles()?.find {
+    private fun findGOGInfoFile(directory: File, gameId: String? = null, maxDepth: Int = 3, currentDepth: Int = 0): File? {
+        if (!directory.exists() || !directory.isDirectory) {
+            return null
+        }
+        
+        // Check current directory first
+        val infoFile = directory.listFiles()?.find {
             it.isFile && if (gameId != null) {
                 it.name == "goggame-$gameId.info"
             } else {
                 it.name.startsWith("goggame-") && it.name.endsWith(".info")
             }
         }
+        
+        if (infoFile != null) {
+            return infoFile
+        }
+        
+        // If max depth reached, stop searching
+        if (currentDepth >= maxDepth) {
+            return null
+        }
+        
+        // Search subdirectories recursively
+        val subdirs = directory.listFiles()?.filter { it.isDirectory } ?: emptyList()
+        for (subdir in subdirs) {
+            val found = findGOGInfoFile(subdir, gameId, maxDepth, currentDepth + 1)
+            if (found != null) {
+                return found
+            }
+        }
+        
+        return null
     }
 
     private fun getMainExecutableFromGOGInfo(gameDir: File, installPath: String): Result<String> {
