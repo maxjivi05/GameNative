@@ -821,4 +821,14 @@
     <string name="gog_login_button">Log ind</string>
     <string name="gog_login_cancel">Annuller</string>
     <string name="gog_login_browser_error">Kunne ikke åbne browser</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Log ud</string>
+    <string name="gog_settings_logout_subtitle">Log ud fra din GOG-konto</string>
+    <string name="gog_logout_confirm_title">Log ud fra GOG?</string>
+    <string name="gog_logout_confirm_message">Dette vil fjerne dine GOG-legitimationsoplysninger og rydde dit GOG-bibliotek fra denne enhed. Du kan logge ind igen når som helst.</string>
+    <string name="gog_logout_confirm">Log ud</string>
+    <string name="gog_logout_success">Logget ud fra GOG</string>
+    <string name="gog_logout_failed">Kunne ikke logge ud: %s</string>
+    <string name="gog_logout_in_progress">Logger ud fra GOG…</string>
 </resources>

@@ -821,4 +821,14 @@
     <string name="gog_login_button">Entrar</string>
     <string name="gog_login_cancel">Cancelar</string>
     <string name="gog_login_browser_error">Não foi possível abrir o navegador</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Sair</string>
+    <string name="gog_settings_logout_subtitle">Desconectar da sua conta GOG</string>
+    <string name="gog_logout_confirm_title">Sair do GOG?</string>
+    <string name="gog_logout_confirm_message">Isso removerá suas credenciais GOG e limpará sua biblioteca GOG deste dispositivo. Você pode entrar novamente a qualquer momento.</string>
+    <string name="gog_logout_confirm">Sair</string>
+    <string name="gog_logout_success">Desconectado do GOG com sucesso</string>
+    <string name="gog_logout_failed">Falha ao sair: %s</string>
+    <string name="gog_logout_in_progress">Saindo do GOG…</string>
 </resources>

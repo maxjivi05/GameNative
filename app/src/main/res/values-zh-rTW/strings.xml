@@ -951,6 +951,16 @@
     <string name="gog_login_button">登入</string>
     <string name="gog_login_cancel">取消</string>
     <string name="gog_login_browser_error">無法開啟瀏覽器</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">登出</string>
+    <string name="gog_settings_logout_subtitle">從您的 GOG 帳戶登出</string>
+    <string name="gog_logout_confirm_title">從 GOG 登出?</string>
+    <string name="gog_logout_confirm_message">這將刪除您的 GOG 憑證並清除此裝置上的 GOG 遊戲庫。您可以隨時重新登入。</string>
+    <string name="gog_logout_confirm">登出</string>
+    <string name="gog_logout_success">成功從 GOG 登出</string>
+    <string name="gog_logout_failed">登出失敗: %s</string>
+    <string name="gog_logout_in_progress">正在從 GOG 登出…</string>
 </resources>
 
 

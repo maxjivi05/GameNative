@@ -954,6 +954,16 @@
     <string name="gog_login_button">Se connecter</string>
     <string name="gog_login_cancel">Annuler</string>
     <string name="gog_login_browser_error">Impossible d\'ouvrir le navigateur</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Déconnexion</string>
+    <string name="gog_settings_logout_subtitle">Se déconnecter de votre compte GOG</string>
+    <string name="gog_logout_confirm_title">Se déconnecter de GOG ?</string>
+    <string name="gog_logout_confirm_message">Cela supprimera vos identifiants GOG et effacera votre bibliothèque GOG de cet appareil. Vous pouvez vous reconnecter à tout moment.</string>
+    <string name="gog_logout_confirm">Déconnexion</string>
+    <string name="gog_logout_success">Déconnecté de GOG avec succès</string>
+    <string name="gog_logout_failed">Échec de la déconnexion : %s</string>
+    <string name="gog_logout_in_progress">Déconnexion de GOG…</string>
 </resources>
 
 

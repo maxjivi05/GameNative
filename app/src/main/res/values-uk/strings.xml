@@ -600,6 +600,16 @@
     <string name="gog_login_button">Увійти</string>
     <string name="gog_login_cancel">Скасувати</string>
     <string name="gog_login_browser_error">Не вдалося відкрити браузер</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Вийти</string>
+    <string name="gog_settings_logout_subtitle">Вийти з облікового запису GOG</string>
+    <string name="gog_logout_confirm_title">Вийти з GOG?</string>
+    <string name="gog_logout_confirm_message">Це видалить ваші облікові дані GOG та очистить бібліотеку GOG на цьому пристрої. Ви можете увійти знову в будь-який час.</string>
+    <string name="gog_logout_confirm">Вийти</string>
+    <string name="gog_logout_success">Успішно вийшли з GOG</string>
+    <string name="gog_logout_failed">Не вдалося вийти: %s</string>
+    <string name="gog_logout_in_progress">Вихід з GOG…</string>
 </resources>
 
 

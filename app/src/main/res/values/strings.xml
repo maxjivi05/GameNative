@@ -958,5 +958,15 @@
     <string name="gog_login_button">Login</string>
     <string name="gog_login_cancel">Cancel</string>
     <string name="gog_login_browser_error">Could not open browser</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Logout</string>
+    <string name="gog_settings_logout_subtitle">Sign out from your GOG account</string>
+    <string name="gog_logout_confirm_title">Logout from GOG?</string>
+    <string name="gog_logout_confirm_message">This will remove your GOG credentials and clear your GOG library from this device. You can sign in again at any time.</string>
+    <string name="gog_logout_confirm">Logout</string>
+    <string name="gog_logout_success">Logged out from GOG successfully</string>
+    <string name="gog_logout_failed">Failed to logout: %s</string>
+    <string name="gog_logout_in_progress">Logging out from GOG…</string>
 </resources>
 

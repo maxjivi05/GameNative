@@ -289,6 +289,10 @@ fun SettingsGroupInterface(
         }
     }
 
+    // GOG logout confirmation dialog state
+    var showGOGLogoutDialog by rememberSaveable { mutableStateOf(false) }
+    var gogLogoutLoading by rememberSaveable { mutableStateOf(false) }
+
     // GOG Integration
     SettingsGroup(title = { Text(text = stringResource(R.string.gog_integration_title)) }) {
         SettingsMenuLink(
@@ -301,6 +305,18 @@ fun SettingsGroupInterface(
                 gogLoginSuccess = false
             }
         )
+
+        // Logout button - only show if credentials exist
+        if (app.gamenative.service.gog.GOGAuthManager.hasStoredCredentials(context)) {
+            SettingsMenuLink(
+                colors = settingsTileColorsAlt(),
+                title = { Text(text = stringResource(R.string.gog_settings_logout_title)) },
+                subtitle = { Text(text = stringResource(R.string.gog_settings_logout_subtitle)) },
+                onClick = {
+                    showGOGLogoutDialog = true
+                }
+            )
+        }
     }
 
     // Downloads settings
@@ -614,6 +630,66 @@ fun SettingsGroupInterface(
             message = stringResource(R.string.gog_login_success_message)
         )
     }
+
+    // GOG logout confirmation dialog
+    MessageDialog(
+        visible = showGOGLogoutDialog,
+        title = stringResource(R.string.gog_logout_confirm_title),
+        message = stringResource(R.string.gog_logout_confirm_message),
+        confirmBtnText = stringResource(R.string.gog_logout_confirm),
+        dismissBtnText = stringResource(R.string.cancel),
+        onConfirmClick = {
+            showGOGLogoutDialog = false
+            gogLogoutLoading = true
+            coroutineScope.launch {
+                try {
+                    Timber.d("[SettingsGOG] Starting logout...")
+                    val result = GOGService.logout(context)
+
+                    if (result.isSuccess) {
+                        Timber.i("[SettingsGOG] Logout successful")
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.gog_logout_success),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } else {
+                        val error = result.exceptionOrNull()
+                        Timber.e(error, "[SettingsGOG] Logout failed")
+                        withContext(Dispatchers.Main) {
+                            android.widget.Toast.makeText(
+                                context,
+                                context.getString(R.string.gog_logout_failed, error?.message ?: "Unknown error"),
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Timber.e(e, "[SettingsGOG] Exception during logout")
+                    withContext(Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            context,
+                            context.getString(R.string.gog_logout_failed, e.message ?: "Unknown error"),
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } finally {
+                    gogLogoutLoading = false
+                }
+            }
+        },
+        onDismissRequest = { showGOGLogoutDialog = false },
+        onDismissClick = { showGOGLogoutDialog = false }
+    )
+
+    // GOG logout loading dialog
+    LoadingDialog(
+        visible = gogLogoutLoading,
+        progress = -1f,
+        message = stringResource(R.string.gog_logout_in_progress)
+    )
 }
 
 

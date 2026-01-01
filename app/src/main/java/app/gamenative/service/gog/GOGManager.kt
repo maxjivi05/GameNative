@@ -108,6 +108,11 @@ class GOGManager @Inject constructor(
         }
     }
 
+    suspend fun deleteAllGames() {
+        withContext(Dispatchers.IO) {
+            gogGameDao.deleteAll()
+        }
+    }
 
     suspend fun startBackgroundSync(context: Context): Result<Unit> = withContext(Dispatchers.IO) {
         try {

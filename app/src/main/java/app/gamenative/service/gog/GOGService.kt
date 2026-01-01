@@ -94,6 +94,43 @@ class GOGService : Service() {
             return GOGAuthManager.clearStoredCredentials(context)
         }
 
+        /**
+         * Logout from GOG - clears credentials, database, and stops service
+         */
+        suspend fun logout(context: Context): Result<Unit> {
+            return withContext(Dispatchers.IO) {
+                try {
+                    Timber.i("[GOGService] Logging out from GOG...")
+
+                    // Get instance first before stopping the service
+                    val instance = getInstance()
+                    if (instance == null) {
+                        Timber.w("[GOGService] Service instance not available during logout")
+                        return@withContext Result.failure(Exception("Service not running"))
+                    }
+
+                    // Clear stored credentials
+                    val credentialsCleared = clearStoredCredentials(context)
+                    if (!credentialsCleared) {
+                        Timber.w("[GOGService] Failed to clear credentials during logout")
+                    }
+
+                    // Clear all GOG games from database
+                    instance.gogManager.deleteAllGames()
+                    Timber.i("[GOGService] All GOG games removed from database")
+
+                    // Stop the service
+                    stop()
+
+                    Timber.i("[GOGService] Logout completed successfully")
+                    Result.success(Unit)
+                } catch (e: Exception) {
+                    Timber.e(e, "[GOGService] Error during logout")
+                    Result.failure(e)
+                }
+            }
+        }
+
         // ==========================================================================
         // SYNC & OPERATIONS
         // ==========================================================================
@@ -308,7 +345,7 @@ class GOGService : Service() {
                 // Get game info
                 val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
                 val game = instance.gogManager.getGameById(gameId.toString())
-                
+
                 if (game == null) {
                     Timber.e("Game not found for appId: $appId")
                     return@withContext false
@@ -316,7 +353,7 @@ class GOGService : Service() {
 
                 // Get save directory paths (Android runs games through Wine, so always Windows)
                 val saveLocations = instance.gogManager.getSaveDirectoryPath(context, appId, game.title)
-                
+
                 if (saveLocations == null || saveLocations.isEmpty()) {
                     Timber.w("No save locations found for game $appId (cloud saves may not be enabled)")
                     return@withContext false

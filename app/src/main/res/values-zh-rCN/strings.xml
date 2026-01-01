@@ -947,4 +947,14 @@
     <string name="gog_login_button">登录</string>
     <string name="gog_login_cancel">取消</string>
     <string name="gog_login_browser_error">无法打开浏览器</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">注销</string>
+    <string name="gog_settings_logout_subtitle">从您的 GOG 账户登出</string>
+    <string name="gog_logout_confirm_title">从 GOG 注销?</string>
+    <string name="gog_logout_confirm_message">这将删除您的 GOG 凭据并清除此设备上的 GOG 库。您可以随时重新登录。</string>
+    <string name="gog_logout_confirm">注销</string>
+    <string name="gog_logout_success">成功从 GOG 注销</string>
+    <string name="gog_logout_failed">注销失败: %s</string>
+    <string name="gog_logout_in_progress">正在从 GOG 注销…</string>
 </resources>
