@@ -151,24 +151,34 @@ enum class PathType {
         fun toAbsPathForGOG(context: Context, gogWindowsPath: String, appId: String? = null): String {
             val imageFs = ImageFs.find(context)
             // For GOG games, use the container-specific wine prefix if appId is provided
-            val winePrefix = if (appId != null) {
+            val (winePrefix, useContainerRoot) = if (appId != null) {
                 val container = app.gamenative.utils.ContainerUtils.getOrCreateContainer(context, appId)
-                val containerWinePrefix = container.rootDir.absolutePath
-                Timber.d("[PathType] Using container-specific wine prefix for $appId: $containerWinePrefix")
-                containerWinePrefix
+                val containerRoot = container.rootDir.absolutePath
+                Timber.d("[PathType] Using container-specific root for $appId: $containerRoot")
+                Pair(containerRoot, true)
             } else {
-                imageFs.rootDir.absolutePath
+                Pair(imageFs.rootDir.absolutePath, false)
             }
             val user = ImageFs.USER
 
             var mappedPath = gogWindowsPath
 
             // Map Windows environment variables to their Wine prefix equivalents
+            // When using container root, paths are relative to containerRoot/.wine/
+            // When using imageFs, paths are relative to imageFs/home/xuser/.wine/
+            val winePrefixPath = if (useContainerRoot) {
+                // Container root is already the container dir, wine is at .wine/
+                ".wine"
+            } else {
+                // ImageFs needs home/xuser/.wine
+                ImageFs.WINEPREFIX
+            }
+            
             // Handle %USERPROFILE% first to avoid partial replacements
             if (mappedPath.contains("%USERPROFILE%/Saved Games") || mappedPath.contains("%USERPROFILE%\\Saved Games")) {
                 val savedGamesPath = Paths.get(
-                    winePrefix, ImageFs.WINEPREFIX,
-                    "/drive_c/users/", user, "Saved Games/"
+                    winePrefix, winePrefixPath,
+                    "drive_c/users/", user, "Saved Games/"
                 ).toString()
                 mappedPath = mappedPath.replace("%USERPROFILE%/Saved Games", savedGamesPath)
                     .replace("%USERPROFILE%\\Saved Games", savedGamesPath)
@@ -176,8 +186,8 @@ enum class PathType {
 
             if (mappedPath.contains("%USERPROFILE%/Documents") || mappedPath.contains("%USERPROFILE%\\Documents")) {
                 val documentsPath = Paths.get(
-                    winePrefix, ImageFs.WINEPREFIX,
-                    "/drive_c/users/", user, "Documents/"
+                    winePrefix, winePrefixPath,
+                    "drive_c/users/", user, "Documents/"
                 ).toString()
                 mappedPath = mappedPath.replace("%USERPROFILE%/Documents", documentsPath)
                     .replace("%USERPROFILE%\\Documents", documentsPath)
@@ -185,11 +195,11 @@ enum class PathType {
 
             // Map standard Windows environment variables
             mappedPath = mappedPath.replace("%LOCALAPPDATA%",
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "AppData/Local/").toString())
+                Paths.get(winePrefix, winePrefixPath, "drive_c/users/", user, "AppData/Local/").toString())
             mappedPath = mappedPath.replace("%APPDATA%",
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "AppData/Roaming/").toString())
+                Paths.get(winePrefix, winePrefixPath, "drive_c/users/", user, "AppData/Roaming/").toString())
             mappedPath = mappedPath.replace("%USERPROFILE%",
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "").toString())
+                Paths.get(winePrefix, winePrefixPath, "drive_c/users/", user, "").toString())
 
             // Normalize path separators
             mappedPath = mappedPath.replace("\\", "/")
@@ -224,7 +234,7 @@ enum class PathType {
                 }
                 mappedPath.startsWith("drive_c/") || mappedPath.startsWith("/drive_c/") -> {
                     val cleanPath = mappedPath.removePrefix("/")
-                    Paths.get(winePrefix, ImageFs.WINEPREFIX, cleanPath).toString()
+                    Paths.get(winePrefix, winePrefixPath, cleanPath).toString()
                 }
                 mappedPath.startsWith(winePrefix) -> {
                     // Already absolute
@@ -232,7 +242,7 @@ enum class PathType {
                 }
                 else -> {
                     // Relative path, assume it's in drive_c
-                    Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c", mappedPath).toString()
+                    Paths.get(winePrefix, winePrefixPath, "drive_c", mappedPath).toString()
                 }
             }
 

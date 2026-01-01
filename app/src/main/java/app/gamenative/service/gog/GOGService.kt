@@ -359,97 +359,118 @@ class GOGService : Service() {
         suspend fun syncCloudSaves(context: Context, appId: String, preferredAction: String = "none"): Boolean = withContext(Dispatchers.IO) {
             try {
                 Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
-                val instance = getInstance()
-                if (instance == null) {
-                    Timber.tag("GOG").e("[Cloud Saves] Service instance not available")
+                
+                // Check if there's already a sync in progress for this appId
+                if (!instance!!.gogManager.startSync(appId)) {
+                    Timber.tag("GOG").w("[Cloud Saves] Sync already in progress for $appId, skipping duplicate sync")
                     return@withContext false
                 }
+                
+                try {
+                    val instance = getInstance()
+                    if (instance == null) {
+                        Timber.tag("GOG").e("[Cloud Saves] Service instance not available")
+                        return@withContext false
+                    }
 
-                if (!GOGAuthManager.hasStoredCredentials(context)) {
-                    Timber.tag("GOG").e("[Cloud Saves] Cannot sync saves: not authenticated")
-                    return@withContext false
-                }
+                    if (!GOGAuthManager.hasStoredCredentials(context)) {
+                        Timber.tag("GOG").e("[Cloud Saves] Cannot sync saves: not authenticated")
+                        return@withContext false
+                    }
 
-                val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
-                Timber.tag("GOG").d("[Cloud Saves] Using auth config path: $authConfigPath")
+                    val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+                    Timber.tag("GOG").d("[Cloud Saves] Using auth config path: $authConfigPath")
 
-                // Get game info
-                val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
-                Timber.tag("GOG").d("[Cloud Saves] Extracted game ID: $gameId from appId: $appId")
-                val game = instance.gogManager.getGameById(gameId.toString())
+                    // Get game info
+                    val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                    Timber.tag("GOG").d("[Cloud Saves] Extracted game ID: $gameId from appId: $appId")
+                    val game = instance.gogManager.getGameById(gameId.toString())
 
-                if (game == null) {
-                    Timber.tag("GOG").e("[Cloud Saves] Game not found for appId: $appId")
-                    return@withContext false
-                }
-                Timber.tag("GOG").d("[Cloud Saves] Found game: ${game.title}")
+                    if (game == null) {
+                        Timber.tag("GOG").e("[Cloud Saves] Game not found for appId: $appId")
+                        return@withContext false
+                    }
+                    Timber.tag("GOG").d("[Cloud Saves] Found game: ${game.title}")
 
-                // Get save directory paths (Android runs games through Wine, so always Windows)
-                Timber.tag("GOG").d("[Cloud Saves] Resolving save directory paths for $appId")
-                val saveLocations = instance.gogManager.getSaveDirectoryPath(context, appId, game.title)
+                    // Get save directory paths (Android runs games through Wine, so always Windows)
+                    Timber.tag("GOG").d("[Cloud Saves] Resolving save directory paths for $appId")
+                    val saveLocations = instance.gogManager.getSaveDirectoryPath(context, appId, game.title)
 
-                if (saveLocations == null || saveLocations.isEmpty()) {
-                    Timber.tag("GOG").w("[Cloud Saves] No save locations found for game $appId (cloud saves may not be enabled)")
-                    return@withContext false
-                }
-                Timber.tag("GOG").i("[Cloud Saves] Found ${saveLocations.size} save location(s) for $appId")
+                    if (saveLocations == null || saveLocations.isEmpty()) {
+                        Timber.tag("GOG").w("[Cloud Saves] No save locations found for game $appId (cloud saves may not be enabled)")
+                        return@withContext false
+                    }
+                    Timber.tag("GOG").i("[Cloud Saves] Found ${saveLocations.size} save location(s) for $appId")
 
-                var allSucceeded = true
+                    var allSucceeded = true
 
-                // Sync each save location
-                for ((index, location) in saveLocations.withIndex()) {
-                    try {
-                        Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
-                        // Get stored timestamp for this location
-                        val timestamp = instance.gogManager.getSyncTimestamp(appId, location.name)
+                    // Sync each save location
+                    for ((index, location) in saveLocations.withIndex()) {
+                        try {
+                            Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
+                            // Get stored timestamp for this location
+                            val timestamp = instance.gogManager.getSyncTimestamp(appId, location.name)
 
-                        Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
+                            Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
 
-                        // Build command arguments (matching HeroicGamesLauncher format)
-                        val commandArgs = mutableListOf(
-                            "--auth-config-path", authConfigPath,
-                            "save-sync",
-                            location.location,
-                            gameId.toString(),
-                            "--os", "windows", // Android runs games through Wine
-                            "--ts", timestamp,
-                            "--name", location.name,
-                            "--prefered-action", preferredAction
-                        )
-                        Timber.tag("GOG").d("[Cloud Saves] Executing Python command with args: ${commandArgs.joinToString(" ")}")
+                            // Build command arguments (matching HeroicGamesLauncher format)
+                            val commandArgs = mutableListOf(
+                                "--auth-config-path", authConfigPath,
+                                "save-sync",
+                                location.location,
+                                gameId.toString(),
+                                "--os", "windows", // Android runs games through Wine
+                                "--ts", timestamp,
+                                "--name", location.name,
+                                "--prefered-action", preferredAction
+                            )
+                            Timber.tag("GOG").d("[Cloud Saves] Executing Python command with args: ${commandArgs.joinToString(" ")}")
 
-                        // Execute sync command
-                        val result = GOGPythonBridge.executeCommand(*commandArgs.toTypedArray())
+                            // Execute sync command
+                            val result = GOGPythonBridge.executeCommand(*commandArgs.toTypedArray())
 
-                        if (result.isSuccess) {
-                            val output = result.getOrNull() ?: ""
-                            Timber.tag("GOG").d("[Cloud Saves] Python command output: $output")
-                            // Python save-sync returns timestamp on success, store it
-                            val newTimestamp = output.trim()
-                            if (newTimestamp.isNotEmpty() && newTimestamp != "0") {
-                                instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp)
-                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
+                            if (result.isSuccess) {
+                                val output = result.getOrNull() ?: ""
+                                Timber.tag("GOG").d("[Cloud Saves] Python command output: $output")
+                                
+                                // Python save-sync returns timestamp on success, store it
+                                // CRITICAL: Validate that the output is a valid numeric timestamp
+                                val newTimestamp = output.trim()
+                                if (newTimestamp.isNotEmpty() && newTimestamp != "0") {
+                                    // Check if it's a valid timestamp (number with optional decimal point)
+                                    if (newTimestamp.matches(Regex("^\\d+(\\.\\d+)?$"))) {
+                                        instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp)
+                                        Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
+                                    } else {
+                                        Timber.tag("GOG").e("[Cloud Saves] Invalid timestamp format returned: '$newTimestamp' - expected numeric value")
+                                        allSucceeded = false
+                                    }
+                                } else {
+                                    Timber.tag("GOG").w("[Cloud Saves] No valid timestamp returned (output: '$newTimestamp')")
+                                }
+                                Timber.tag("GOG").i("[Cloud Saves] Successfully synced save location '${location.name}' for game $gameId")
                             } else {
-                                Timber.tag("GOG").w("[Cloud Saves] No valid timestamp returned (output: '$newTimestamp')")
+                                val error = result.exceptionOrNull()
+                                Timber.tag("GOG").e(error, "[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId")
+                                allSucceeded = false
                             }
-                            Timber.tag("GOG").i("[Cloud Saves] Successfully synced save location '${location.name}' for game $gameId")
-                        } else {
-                            val error = result.exceptionOrNull()
-                            Timber.tag("GOG").e(error, "[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId")
+                        } catch (e: Exception) {
+                            Timber.tag("GOG").e(e, "[Cloud Saves] Exception syncing save location '${location.name}' for game $gameId")
                             allSucceeded = false
                         }
-                    } catch (e: Exception) {
-                        Timber.tag("GOG").e(e, "[Cloud Saves] Exception syncing save location '${location.name}' for game $gameId")
-                        allSucceeded = false
                     }
-                }
 
-                if (allSucceeded) {
-                    Timber.tag("GOG").i("[Cloud Saves] All save locations synced successfully for $appId")
-                    return@withContext true
-                } else {
-                    Timber.tag("GOG").w("[Cloud Saves] Some save locations failed to sync for $appId")
-                    return@withContext false
+                    if (allSucceeded) {
+                        Timber.tag("GOG").i("[Cloud Saves] All save locations synced successfully for $appId")
+                        return@withContext true
+                    } else {
+                        Timber.tag("GOG").w("[Cloud Saves] Some save locations failed to sync for $appId")
+                        return@withContext false
+                    }
+                } finally {
+                    // Always end the sync, even if an exception occurred
+                    instance!!.gogManager.endSync(appId)
+                    Timber.tag("GOG").d("[Cloud Saves] Sync completed and lock released for $appId")
                 }
             } catch (e: Exception) {
                 Timber.tag("GOG").e(e, "[Cloud Saves] Failed to sync cloud saves for App ID: $appId")

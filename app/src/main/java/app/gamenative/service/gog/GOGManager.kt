@@ -85,6 +85,9 @@ class GOGManager @Inject constructor(
     // Timestamp storage for sync state (gameId_locationName -> timestamp)
     private val syncTimestamps = ConcurrentHashMap<String, String>()
 
+    // Track active sync operations to prevent concurrent syncs
+    private val activeSyncs = ConcurrentHashMap.newKeySet<String>()
+
     suspend fun getGameById(gameId: String): GOGGame? {
         return withContext(Dispatchers.IO) {
             try {
@@ -1236,6 +1239,23 @@ class GOGManager @Inject constructor(
         val key = "${appId}_$locationName"
         syncTimestamps[key] = timestamp
         Timber.d("Stored sync timestamp for $key: $timestamp")
+    }
+
+    /**
+     * Start a sync operation for a game (prevents concurrent syncs)
+     * @param appId Game app ID
+     * @return true if sync can proceed, false if one is already in progress
+     */
+    fun startSync(appId: String): Boolean {
+        return activeSyncs.add(appId)
+    }
+
+    /**
+     * End a sync operation for a game
+     * @param appId Game app ID
+     */
+    fun endSync(appId: String) {
+        activeSyncs.remove(appId)
     }
 
     // ==========================================================================
