@@ -724,7 +724,7 @@ class GOGManager @Inject constructor(
         val game = runBlocking { getGameById(gameId) }
         val installPath = game?.installPath
 
-        if (installPath == null || !game.isInstalled) {
+        if (game == null || installPath == null || !game.isInstalled) {
             return Pair(false, "Game not marked as installed in database")
         }
 
