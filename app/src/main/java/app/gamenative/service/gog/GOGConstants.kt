@@ -25,7 +25,7 @@ object GOGConstants {
     const val GOG_AUTH_LOGIN_URL = "https://auth.gog.com/auth?client_id=$GOG_CLIENT_ID&redirect_uri=$GOG_REDIRECT_URI&response_type=code&layout=client2"
 
     // GOG paths - following Steam's structure pattern
-    private const val INTERNAL_BASE_PATH = "/data/data/app.gamenative/files"
+    private const val INTERNAL_BASE_PATH = "/data/data/app.gamenative"
 
     /**
      * Internal GOG games installation path (similar to Steam's internal path)

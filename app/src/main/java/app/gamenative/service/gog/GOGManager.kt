@@ -791,7 +791,7 @@ class GOGManager @Inject constructor(
         if (!directory.exists() || !directory.isDirectory) {
             return null
         }
-        
+
         // Check current directory first
         val infoFile = directory.listFiles()?.find {
             it.isFile && if (gameId != null) {
@@ -800,16 +800,16 @@ class GOGManager @Inject constructor(
                 it.name.startsWith("goggame-") && it.name.endsWith(".info")
             }
         }
-        
+
         if (infoFile != null) {
             return infoFile
         }
-        
+
         // If max depth reached, stop searching
         if (currentDepth >= maxDepth) {
             return null
         }
-        
+
         // Search subdirectories recursively
         val subdirs = directory.listFiles()?.filter { it.isDirectory } ?: emptyList()
         for (subdir in subdirs) {
@@ -818,7 +818,7 @@ class GOGManager @Inject constructor(
                 return found
             }
         }
-        
+
         return null
     }
 
@@ -839,12 +839,15 @@ class GOGManager @Inject constructor(
                 val task = playTasks.getJSONObject(i)
                 if (task.has("isPrimary") && task.getBoolean("isPrimary")) {
                     val executablePath = task.getString("path")
-                    val actualExeFile = gameDir.listFiles()?.find {
-                        it.name.equals(executablePath, ignoreCase = true)
+
+                    // Construct full path - executablePath may include subdirectories
+                    val exeFile = File(gameDir, executablePath)
+
+                    if (exeFile.exists()) {
+                        val relativePath = exeFile.relativeTo(gameDir.parentFile).path
+                        return Result.success(relativePath)
                     }
-                    if (actualExeFile != null && actualExeFile.exists()) {
-                        return Result.success("${gameDir.name}/${actualExeFile.name}")
-                    }
+
                     return Result.failure(Exception("Primary executable '$executablePath' not found in ${gameDir.absolutePath}"))
                 }
             }
@@ -1124,7 +1127,7 @@ class GOGManager @Inject constructor(
                 val clientId = infoJson?.optString("clientId", "") ?: ""
 
                 if (clientId.isNotEmpty()) {
-                    val defaultLocation = "%LocalAppData%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
+                    val defaultLocation = "%LOCALAPPDATA%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
                     locations = listOf(GOGCloudSavesLocationTemplate("__default", defaultLocation))
                 } else {
                     Timber.w("Cannot create default save location: no clientId")
