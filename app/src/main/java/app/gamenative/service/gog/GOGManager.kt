@@ -1182,7 +1182,8 @@ class GOGManager @Inject constructor(
                 Timber.tag("GOG").d("[Cloud Saves] After GOG variable resolution: $resolvedPath")
 
                 // Map GOG Windows path to device path using PathType
-                resolvedPath = PathType.toAbsPathForGOG(context, resolvedPath)
+                // Pass appId to ensure we use the correct container-specific wine prefix
+                resolvedPath = PathType.toAbsPathForGOG(context, resolvedPath, appId)
                 Timber.tag("GOG").d("[Cloud Saves] After path mapping to Wine prefix: $resolvedPath")
 
                 // Normalize path to resolve any '..' or '.' components

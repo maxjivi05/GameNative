@@ -148,9 +148,17 @@ enum class PathType {
          * @param gogWindowsPath GOG-provided Windows path that may contain env vars like %LOCALAPPDATA%, %APPDATA%, %USERPROFILE%
          * @return Absolute Unix path in Wine prefix
          */
-        fun toAbsPathForGOG(context: Context, gogWindowsPath: String): String {
+        fun toAbsPathForGOG(context: Context, gogWindowsPath: String, appId: String? = null): String {
             val imageFs = ImageFs.find(context)
-            val winePrefix = imageFs.rootDir.absolutePath
+            // For GOG games, use the container-specific wine prefix if appId is provided
+            val winePrefix = if (appId != null) {
+                val container = app.gamenative.utils.ContainerUtils.getOrCreateContainer(context, appId)
+                val containerWinePrefix = container.rootDir.absolutePath
+                Timber.d("[PathType] Using container-specific wine prefix for $appId: $containerWinePrefix")
+                containerWinePrefix
+            } else {
+                imageFs.rootDir.absolutePath
+            }
             val user = ImageFs.USER
 
             var mappedPath = gogWindowsPath
