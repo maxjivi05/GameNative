@@ -958,9 +958,9 @@ class GOGManager @Inject constructor(
             }
 
             // Look for goggame-{gameId}.info file - check root first, then common subdirectories
-            var infoFile = findGOGInfoFile(installDir, gameId.toString())
+            val infoFile = findGOGInfoFile(installDir, gameId.toString())
 
-            if (!infoFile!!.exists()) {
+            if (infoFile == null || !infoFile.exists()) {
                 Timber.w("Info file not found for game $gameId in ${installDir.absolutePath}")
                 return@withContext null
             }
