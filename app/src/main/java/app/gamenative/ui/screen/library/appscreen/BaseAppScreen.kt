@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -46,6 +47,22 @@ import kotlinx.coroutines.withContext
  * This defines the contract that all game source-specific screens must implement.
  */
 abstract class BaseAppScreen {
+        // Shared state for install dialog - map of appId (String) to MessageDialogState
+        companion object {
+            private val installDialogStates = mutableStateMapOf<String, app.gamenative.ui.component.dialog.state.MessageDialogState>()
+
+            fun showInstallDialog(appId: String, state: app.gamenative.ui.component.dialog.state.MessageDialogState) {
+                installDialogStates[appId] = state
+            }
+
+            fun hideInstallDialog(appId: String) {
+                installDialogStates.remove(appId)
+            }
+
+            fun getInstallDialogState(appId: String): app.gamenative.ui.component.dialog.state.MessageDialogState? {
+                return installDialogStates[appId]
+            }
+        }
     /**
      * Get the game display information for rendering the UI.
      * This is called to get all the data needed for the common UI layout.

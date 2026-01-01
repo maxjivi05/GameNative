@@ -123,11 +123,11 @@ class GOGManager @Inject constructor(
             if (result.isSuccess) {
                 val count = result.getOrNull() ?: 0
                 Timber.tag("GOG").i("Background sync completed: $count games synced")
-                Result.success(Unit)
+                return@withContext Result.success(Unit)
             } else {
                 val error = result.exceptionOrNull()
                 Timber.e(error, "Background sync failed: ${error?.message}")
-                Result.failure(error ?: Exception("Background sync failed"))
+                return@withContext Result.failure(error ?: Exception("Background sync failed"))
             }
         } catch (e: Exception) {
             Timber.e(e, "Failed to sync GOG library in background")
@@ -844,7 +844,8 @@ class GOGManager @Inject constructor(
                     val exeFile = File(gameDir, executablePath)
 
                     if (exeFile.exists()) {
-                        val relativePath = exeFile.relativeTo(gameDir.parentFile).path
+                        val parentDir = gameDir.parentFile ?: gameDir
++                       val relativePath = exeFile.relativeTo(parentDir).path
                         return Result.success(relativePath)
                     }
 

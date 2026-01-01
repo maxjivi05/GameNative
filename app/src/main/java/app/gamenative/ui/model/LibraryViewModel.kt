@@ -381,7 +381,6 @@ class LibraryViewModel @Inject constructor(
                     if (entry.isInstalled) 0 else 1
                 }.thenBy { it.item.name.lowercase() }
             ).also { sortedList ->
-                // Log first few items to verify sorting
                 if (sortedList.isNotEmpty()) {
                     val installedCount = sortedList.count { it.isInstalled }
                     val first10 = sortedList.take(10)

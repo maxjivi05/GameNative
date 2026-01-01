@@ -2,6 +2,8 @@ package app.gamenative.ui.component.dialog
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.OpenInBrowser
@@ -9,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,6 +53,9 @@ fun GOGLoginDialog(
 ) {
     val context = LocalContext.current
     var authCode by rememberSaveable { mutableStateOf("") }
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val scrollState = rememberScrollState()
 
     if (!visible) return
         AlertDialog(
@@ -58,21 +64,24 @@ fun GOGLoginDialog(
             title = { Text(stringResource(R.string.gog_login_title)) },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (isLandscape) {
+                                Modifier
+                                    .heightIn(max = 300.dp)
+                                    .verticalScroll(scrollState)
+                            } else {
+                                Modifier
+                            }
+                        ),
+                    verticalArrangement = Arrangement.spacedBy(if (isLandscape) 8.dp else 12.dp)
                 ) {
-                    // Instructions
-                    Text(
-                        text = stringResource(R.string.gog_login_instruction),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
                     Text(
                         text = stringResource(R.string.gog_login_auto_auth_info),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     // Open browser button
                     Button(
                         onClick = {
@@ -88,7 +97,8 @@ fun GOGLoginDialog(
                             }
                         },
                         enabled = !isLoading,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = if (isLandscape) PaddingValues(8.dp) else ButtonDefaults.ContentPadding
                     ) {
                         Icon(
                             imageVector = Icons.Default.OpenInBrowser,
@@ -99,16 +109,11 @@ fun GOGLoginDialog(
                         Text(stringResource(R.string.gog_login_open_button))
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = if (isLandscape) 4.dp else 8.dp))
 
                     // Manual code entry fallback
                     Text(
                         text = stringResource(R.string.gog_login_auth_example),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = stringResource(R.string.gog_login_manual_entry),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
