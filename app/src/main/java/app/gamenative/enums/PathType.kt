@@ -102,7 +102,7 @@ enum class PathType {
 
     companion object {
         val DEFAULT = SteamUserData
-        
+
         /**
          * Resolve GOG path variables (<?VARIABLE?>) to Windows environment variables
          * Converts GOG-specific variables like <?INSTALL?> to actual paths or Windows env vars
@@ -165,7 +165,7 @@ enum class PathType {
                 mappedPath = mappedPath.replace("%USERPROFILE%/Saved Games", savedGamesPath)
                     .replace("%USERPROFILE%\\Saved Games", savedGamesPath)
             }
-            
+
             if (mappedPath.contains("%USERPROFILE%/Documents") || mappedPath.contains("%USERPROFILE%\\Documents")) {
                 val documentsPath = Paths.get(
                     winePrefix, ImageFs.WINEPREFIX,
@@ -176,18 +176,44 @@ enum class PathType {
             }
 
             // Map standard Windows environment variables
-            mappedPath = mappedPath.replace("%LOCALAPPDATA%", 
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "AppData/Local/").toString())
-            mappedPath = mappedPath.replace("%APPDATA%", 
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "AppData/Roaming/").toString())
-            mappedPath = mappedPath.replace("%USERPROFILE%", 
-                Paths.get(winePrefix, ImageFs.WINEPREFIX, "/drive_c/users/", user, "").toString())
+            mappedPath = mappedPath.replace("%LOCALAPPDATA%",
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "AppData/Local/").toString())
+            mappedPath = mappedPath.replace("%APPDATA%",
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "AppData/Roaming/").toString())
+            mappedPath = mappedPath.replace("%USERPROFILE%",
+                Paths.get(winePrefix, ImageFs.WINEPREFIX, "drive_c/users/", user, "").toString())
 
             // Normalize path separators
             mappedPath = mappedPath.replace("\\", "/")
 
-            // Build absolute path - if it doesn't start with drive_c, assume it's relative to drive_c
+            // Check if path is already absolute (after env var replacement)
+            val isAlreadyAbsolute = mappedPath.startsWith(winePrefix)
+
+            // Normalize path to resolve ../ and ./ components
+            // Split by /, process each component, and rebuild
+            val pathParts = mappedPath.split("/").toMutableList()
+            val normalizedParts = mutableListOf<String>()
+            for (part in pathParts) {
+                when {
+                    part == ".." && normalizedParts.isNotEmpty() && normalizedParts.last() != ".." -> {
+                        // Go up one directory
+                        normalizedParts.removeAt(normalizedParts.lastIndex)
+                    }
+                    part != "." && part.isNotEmpty() -> {
+                        // Add non-empty, non-current-dir parts
+                        normalizedParts.add(part)
+                    }
+                    // Skip "." and empty parts
+                }
+            }
+            mappedPath = normalizedParts.joinToString("/")
+
+            // Build absolute path - but skip if already absolute after env var replacement
             val absolutePath = when {
+                isAlreadyAbsolute -> {
+                    // Path was already made absolute by env var replacement, use as-is
+                    mappedPath
+                }
                 mappedPath.startsWith("drive_c/") || mappedPath.startsWith("/drive_c/") -> {
                     val cleanPath = mappedPath.removePrefix("/")
                     Paths.get(winePrefix, ImageFs.WINEPREFIX, cleanPath).toString()
@@ -211,7 +237,7 @@ enum class PathType {
 
             return finalPath
         }
-        
+
         fun from(keyValue: String?): PathType {
             return when (keyValue?.lowercase()) {
                 "%${GameInstall.name.lowercase()}%",

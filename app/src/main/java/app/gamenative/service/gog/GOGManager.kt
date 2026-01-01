@@ -1185,6 +1185,16 @@ class GOGManager @Inject constructor(
                 resolvedPath = PathType.toAbsPathForGOG(context, resolvedPath)
                 Timber.tag("GOG").d("[Cloud Saves] After path mapping to Wine prefix: $resolvedPath")
 
+                // Normalize path to resolve any '..' or '.' components
+                try {
+                    val normalizedPath = File(resolvedPath).canonicalPath
+                    // Ensure trailing slash for directories
+                    resolvedPath = if (!normalizedPath.endsWith("/")) "$normalizedPath/" else normalizedPath
+                    Timber.tag("GOG").d("[Cloud Saves] After normalization: $resolvedPath")
+                } catch (e: Exception) {
+                    Timber.tag("GOG").w(e, "[Cloud Saves] Failed to normalize path, using as-is: $resolvedPath")
+                }
+
                 resolvedLocations.add(
                     GOGCloudSavesLocation(
                         name = locationTemplate.name,
