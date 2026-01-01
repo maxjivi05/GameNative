@@ -171,14 +171,27 @@ class GOGManager @Inject constructor(
                 return@withContext Result.success(0)
             }
 
+            // Get existing game IDs from database to avoid re-fetching
+            val existingGameIds = gogGameDao.getAllGameIds().toSet()
+            Timber.tag("GOG").d("Found ${existingGameIds.size} games already in database")
+
+            // Filter to only new games that need details fetched
+            val newGameIds = gameIds.filter { it !in existingGameIds }
+            Timber.tag("GOG").d("${newGameIds.size} new games need details fetched")
+
+            if (newGameIds.isEmpty()) {
+                Timber.tag("GOG").d("No new games to fetch, library is up to date")
+                return@withContext Result.success(0)
+            }
+
             var totalProcessed = 0
 
-            Timber.tag("GOG").d("Getting Game Details for GOG Games...")
+            Timber.tag("GOG").d("Getting Game Details for ${newGameIds.size} new GOG Games...")
 
             val games = mutableListOf<GOGGame>()
             val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
 
-            for ((index, id) in gameIds.withIndex()) {
+            for ((index, id) in newGameIds.withIndex()) {
                 try {
                     val result = GOGPythonBridge.executeCommand(
                         "--auth-config-path", authConfigPath,
@@ -204,10 +217,10 @@ class GOGManager @Inject constructor(
                     Timber.e(e, "Failed to parse game details for ID: $id")
                 }
 
-                if ((index + 1) % REFRESH_BATCH_SIZE == 0 || index == gameIds.size - 1) {
+                if ((index + 1) % REFRESH_BATCH_SIZE == 0 || index == newGameIds.size - 1) {
                     if (games.isNotEmpty()) {
                         gogGameDao.upsertPreservingInstallStatus(games)
-                        Timber.tag("GOG").d("Batch inserted ${games.size} games (processed ${index + 1}/${gameIds.size})")
+                        Timber.tag("GOG").d("Batch inserted ${games.size} games (processed ${index + 1}/${newGameIds.size})")
                         games.clear()
                     }
                 }
@@ -997,24 +1010,26 @@ class GOGManager @Inject constructor(
         installPath: String
     ): List<GOGCloudSavesLocationTemplate>? = withContext(Dispatchers.IO) {
         try {
+            Timber.tag("GOG").d("[Cloud Saves] Getting save sync location for $appId")
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
             val infoJson = readInfoFile(appId, installPath)
 
             if (infoJson == null) {
-                Timber.w("Cannot get save sync location: info file not found")
+                Timber.tag("GOG").w("[Cloud Saves] Cannot get save sync location: info file not found")
                 return@withContext null
             }
 
             // Extract clientId from info file
             val clientId = infoJson.optString("clientId", "")
             if (clientId.isEmpty()) {
-                Timber.w("No clientId found in info file for game $gameId")
+                Timber.tag("GOG").w("[Cloud Saves] No clientId found in info file for game $gameId")
                 return@withContext null
             }
+            Timber.tag("GOG").d("[Cloud Saves] Client ID: $clientId")
 
             // Check cache first
             remoteConfigCache[clientId]?.let { cachedLocations ->
-                Timber.d("Using cached save locations for clientId $clientId")
+                Timber.tag("GOG").d("[Cloud Saves] Using cached save locations for clientId $clientId (${cachedLocations.size} locations)")
                 return@withContext cachedLocations
             }
 
@@ -1023,7 +1038,7 @@ class GOGManager @Inject constructor(
 
             // Fetch remote config
             val url = "https://remote-config.gog.com/components/galaxy_client/clients/$clientId?component_version=2.0.45"
-            Timber.d("Fetching save sync location from: $url")
+            Timber.tag("GOG").d("[Cloud Saves] Fetching remote config from: $url")
 
             val request = Request.Builder()
                 .url(url)
@@ -1032,43 +1047,50 @@ class GOGManager @Inject constructor(
             val response = Net.http.newCall(request).execute()
 
             if (!response.isSuccessful) {
-                Timber.w("Failed to fetch remote config: HTTP ${response.code}")
+                Timber.tag("GOG").w("[Cloud Saves] Failed to fetch remote config: HTTP ${response.code}")
                 return@withContext null
             }
+            Timber.tag("GOG").d("[Cloud Saves] Successfully fetched remote config")
 
-            val responseBody = response.body?.string() ?: return@withContext null
+            val responseBody = response.body?.string()
+            if (responseBody == null) {
+                Timber.tag("GOG").w("[Cloud Saves] Empty response body from remote config")
+                return@withContext null
+            }
             val configJson = JSONObject(responseBody)
 
             // Parse response: content.Windows.cloudStorage.locations
             val content = configJson.optJSONObject("content")
             if (content == null) {
-                Timber.w("No 'content' field in remote config response")
+                Timber.tag("GOG").w("[Cloud Saves] No 'content' field in remote config response")
                 return@withContext null
             }
 
             val platformContent = content.optJSONObject(syncPlatform)
             if (platformContent == null) {
-                Timber.d("No cloud storage config for platform $syncPlatform")
+                Timber.tag("GOG").d("[Cloud Saves] No cloud storage config for platform $syncPlatform")
                 return@withContext null
             }
 
             val cloudStorage = platformContent.optJSONObject("cloudStorage")
             if (cloudStorage == null) {
-                Timber.d("No cloudStorage field for platform $syncPlatform")
+                Timber.tag("GOG").d("[Cloud Saves] No cloudStorage field for platform $syncPlatform")
                 return@withContext null
             }
 
             val enabled = cloudStorage.optBoolean("enabled", false)
             if (!enabled) {
-                Timber.d("Cloud saves not enabled for game $gameId")
+                Timber.tag("GOG").d("[Cloud Saves] Cloud saves not enabled for game $gameId")
                 return@withContext null
             }
+            Timber.tag("GOG").d("[Cloud Saves] Cloud saves are enabled for game $gameId")
 
             val locationsArray = cloudStorage.optJSONArray("locations")
             if (locationsArray == null || locationsArray.length() == 0) {
-                Timber.d("No save locations configured for game $gameId")
+                Timber.tag("GOG").d("[Cloud Saves] No save locations configured for game $gameId")
                 return@withContext null
             }
+            Timber.tag("GOG").d("[Cloud Saves] Found ${locationsArray.length()} location(s) in config")
 
             val locations = mutableListOf<GOGCloudSavesLocationTemplate>()
             for (i in 0 until locationsArray.length()) {
@@ -1076,20 +1098,23 @@ class GOGManager @Inject constructor(
                 val name = locationObj.optString("name", "__default")
                 val location = locationObj.optString("location", "")
                 if (location.isNotEmpty()) {
+                    Timber.tag("GOG").d("[Cloud Saves] Location ${i + 1}: '$name' = '$location'")
                     locations.add(GOGCloudSavesLocationTemplate(name, location))
+                } else {
+                    Timber.tag("GOG").w("[Cloud Saves] Skipping location ${i + 1} with empty path")
                 }
             }
 
             // Cache the result
             if (locations.isNotEmpty()) {
                 remoteConfigCache[clientId] = locations
-                Timber.d("Cached save locations for clientId $clientId")
+                Timber.tag("GOG").d("[Cloud Saves] Cached ${locations.size} save locations for clientId $clientId")
             }
 
-            Timber.i("Found ${locations.size} save location(s) for game $gameId")
+            Timber.tag("GOG").i("[Cloud Saves] Found ${locations.size} save location(s) for game $gameId")
             return@withContext locations
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get save sync location for appId $appId")
+            Timber.tag("GOG").e(e, "[Cloud Saves] Failed to get save sync location for appId $appId")
             return@withContext null
         }
     }
@@ -1109,46 +1134,56 @@ class GOGManager @Inject constructor(
         gameTitle: String
     ): List<GOGCloudSavesLocation>? = withContext(Dispatchers.IO) {
         try {
+            Timber.tag("GOG").d("[Cloud Saves] Getting save directory path for $appId ($gameTitle)")
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
             val game = getGameById(gameId.toString())
 
             if (game == null) {
-                Timber.w("Game not found for appId $appId")
+                Timber.tag("GOG").w("[Cloud Saves] Game not found for appId $appId")
                 return@withContext null
             }
 
             val installPath = game.installPath
             if (installPath.isEmpty()) {
-                Timber.w("Game not installed: $appId")
+                Timber.tag("GOG").w("[Cloud Saves] Game not installed: $appId")
                 return@withContext null
             }
+            Timber.tag("GOG").d("[Cloud Saves] Game install path: $installPath")
 
             // Fetch save locations from API (Android runs games through Wine, so always Windows)
+            Timber.tag("GOG").d("[Cloud Saves] Fetching save locations from API")
             var locations = getSaveSyncLocation(context, appId, installPath)
 
             // If no locations from API, use default Windows path
             if (locations == null || locations.isEmpty()) {
-                Timber.d("No save locations from API, using default for game $gameId")
+                Timber.tag("GOG").d("[Cloud Saves] No save locations from API, using default for game $gameId")
                 val infoJson = readInfoFile(appId, installPath)
                 val clientId = infoJson?.optString("clientId", "") ?: ""
+                Timber.tag("GOG").d("[Cloud Saves] Client ID from info file: $clientId")
 
                 if (clientId.isNotEmpty()) {
                     val defaultLocation = "%LOCALAPPDATA%/GOG.com/Galaxy/Applications/$clientId/Storage/Shared/Files"
+                    Timber.tag("GOG").d("[Cloud Saves] Using default location: $defaultLocation")
                     locations = listOf(GOGCloudSavesLocationTemplate("__default", defaultLocation))
                 } else {
-                    Timber.w("Cannot create default save location: no clientId")
+                    Timber.tag("GOG").w("[Cloud Saves] Cannot create default save location: no clientId")
                     return@withContext null
                 }
+            } else {
+                Timber.tag("GOG").i("[Cloud Saves] Retrieved ${locations.size} save location(s) from API")
             }
 
             // Resolve each location
             val resolvedLocations = mutableListOf<GOGCloudSavesLocation>()
-            for (locationTemplate in locations) {
+            for ((index, locationTemplate) in locations.withIndex()) {
+                Timber.tag("GOG").d("[Cloud Saves] Resolving location ${index + 1}/${locations.size}: '${locationTemplate.name}' = '${locationTemplate.location}'")
                 // Resolve GOG variables (<?INSTALL?>, etc.) to Windows env vars
                 var resolvedPath = PathType.resolveGOGPathVariables(locationTemplate.location, installPath)
+                Timber.tag("GOG").d("[Cloud Saves] After GOG variable resolution: $resolvedPath")
 
                 // Map GOG Windows path to device path using PathType
                 resolvedPath = PathType.toAbsPathForGOG(context, resolvedPath)
+                Timber.tag("GOG").d("[Cloud Saves] After path mapping to Wine prefix: $resolvedPath")
 
                 resolvedLocations.add(
                     GOGCloudSavesLocation(
@@ -1158,10 +1193,13 @@ class GOGManager @Inject constructor(
                 )
             }
 
-            Timber.i("Resolved ${resolvedLocations.size} save location(s) for game $gameId")
+            Timber.tag("GOG").i("[Cloud Saves] Resolved ${resolvedLocations.size} save location(s) for game $gameId")
+            for (loc in resolvedLocations) {
+                Timber.tag("GOG").d("[Cloud Saves]   - '${loc.name}': ${loc.location}")
+            }
             return@withContext resolvedLocations
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get save directory path for appId $appId")
+            Timber.tag("GOG").e(e, "[Cloud Saves] Failed to get save directory path for appId $appId")
             return@withContext null
         }
     }

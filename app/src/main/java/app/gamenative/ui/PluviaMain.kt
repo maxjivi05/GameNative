@@ -1137,22 +1137,23 @@ fun preLaunchApp(
         // For GOG Games, sync cloud saves before launch
         val isGOGGame = ContainerUtils.extractGameSourceFromContainerId(appId) == GameSource.GOG
         if (isGOGGame) {
-            Timber.tag("preLaunchApp").i("GOG Game detected for $appId — syncing cloud saves before launch")
-            
+            Timber.tag("GOG").i("[Cloud Saves] GOG Game detected for $appId — syncing cloud saves before launch")
+
             // Sync cloud saves (download latest saves before playing)
+            Timber.tag("GOG").d("[Cloud Saves] Starting pre-game download sync for $appId")
             val syncSuccess = app.gamenative.service.gog.GOGService.syncCloudSaves(
                 context = context,
                 appId = appId,
                 preferredAction = "download"
             )
-            
+
             if (!syncSuccess) {
-                Timber.w("GOG cloud save sync failed for $appId, proceeding with launch anyway")
+                Timber.tag("GOG").w("[Cloud Saves] Download sync failed for $appId, proceeding with launch anyway")
                 // Don't block launch on sync failure - log warning and continue
             } else {
-                Timber.i("GOG cloud save sync completed successfully for $appId")
+                Timber.tag("GOG").i("[Cloud Saves] Download sync completed successfully for $appId")
             }
-            
+
             setLoadingDialogVisible(false)
             onSuccess(context, appId)
             return@launch

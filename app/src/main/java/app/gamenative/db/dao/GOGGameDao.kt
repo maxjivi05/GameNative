@@ -52,6 +52,9 @@ interface GOGGameDao {
     @Query("SELECT COUNT(*) FROM gog_games")
     fun getCount(): Flow<Int>
 
+    @Query("SELECT id FROM gog_games")
+    suspend fun getAllGameIds(): List<String>
+
     @Transaction
     suspend fun replaceAll(games: List<GOGGame>) {
         deleteAll()

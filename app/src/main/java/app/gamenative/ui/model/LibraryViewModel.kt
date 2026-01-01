@@ -204,6 +204,10 @@ class LibraryViewModel @Inject constructor(
                 } else {
                     Timber.tag("LibraryViewModel").d("No newly owned games discovered during refresh")
                 }
+                if (app.gamenative.service.gog.GOGService.hasStoredCredentials(context)) {
+                    Timber.tag("LibraryViewModel").i("Triggering GOG library refresh")
+                    app.gamenative.service.gog.GOGService.triggerLibrarySync(context)
+                }
             } catch (e: Exception) {
                 Timber.tag("LibraryViewModel").e(e, "Failed to refresh owned games from server")
             } finally {
@@ -212,6 +216,7 @@ class LibraryViewModel @Inject constructor(
             }
         }
     }
+
     fun addCustomGameFolder(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val normalizedPath = File(path).absolutePath
