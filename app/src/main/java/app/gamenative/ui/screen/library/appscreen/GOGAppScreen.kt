@@ -60,28 +60,6 @@ class GOGAppScreen : BaseAppScreen() {
             return result
         }
 
-        // Shared state for install dialog - list of appIds that should show the dialog
-        private val installDialogAppIds = mutableStateListOf<String>()
-
-        fun showInstallDialog(appId: String) {
-            Timber.tag(TAG).d("showInstallDialog: appId=$appId")
-            if (!installDialogAppIds.contains(appId)) {
-                installDialogAppIds.add(appId)
-                Timber.tag(TAG).d("Added to install dialog list: $appId")
-            }
-        }
-
-        fun hideInstallDialog(appId: String) {
-            Timber.tag(TAG).d("hideInstallDialog: appId=$appId")
-            installDialogAppIds.remove(appId)
-        }
-
-        fun shouldShowInstallDialog(appId: String): Boolean {
-            val result = installDialogAppIds.contains(appId)
-            Timber.tag(TAG).d("shouldShowInstallDialog: appId=$appId, result=$result")
-            return result
-        }
-
         /**
          * Formats bytes into a human-readable string (KB, MB, GB).
          * Uses binary units (1024 base).
@@ -242,7 +220,34 @@ class GOGAppScreen : BaseAppScreen() {
         } else {
             // Show install confirmation dialog
             Timber.tag(TAG).i("Showing install confirmation dialog for: ${libraryItem.appId}")
-            showInstallDialog(libraryItem.appId)
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    val game = GOGService.getGOGGameOf(gameId)
+
+                    // Calculate sizes
+                    val downloadSize = app.gamenative.utils.StorageUtils.formatBinarySize(game?.downloadSize ?: 0L)
+                    val availableSpace = app.gamenative.utils.StorageUtils.formatBinarySize(
+                        app.gamenative.utils.StorageUtils.getAvailableSpace(app.gamenative.service.gog.GOGConstants.defaultGOGGamesPath)
+                    )
+
+                    val message = context.getString(
+                        R.string.gog_install_confirmation_message,
+                        downloadSize,
+                        availableSpace
+                    )
+                    val state = app.gamenative.ui.component.dialog.state.MessageDialogState(
+                        visible = true,
+                        type = app.gamenative.ui.enums.DialogType.INSTALL_APP,
+                        title = context.getString(R.string.gog_install_game_title),
+                        message = message,
+                        confirmBtnText = context.getString(R.string.download),
+                        dismissBtnText = context.getString(R.string.cancel)
+                    )
+                    BaseAppScreen.showInstallDialog(libraryItem.appId, state)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to show install dialog for: ${libraryItem.appId}")
+                }
+            }
         }
     }
 
@@ -563,10 +568,10 @@ class GOGAppScreen : BaseAppScreen() {
         // Shared install dialog state (from BaseAppScreen)
         val appId = libraryItem.appId
         var installDialogState by remember(appId) {
-            mutableStateOf(getInstallDialogState(appId) ?: app.gamenative.ui.component.dialog.state.MessageDialogState(false))
+            mutableStateOf(BaseAppScreen.getInstallDialogState(appId) ?: app.gamenative.ui.component.dialog.state.MessageDialogState(false))
         }
         LaunchedEffect(appId) {
-            snapshotFlow { getInstallDialogState(appId) }
+            snapshotFlow { BaseAppScreen.getInstallDialogState(appId) }
                 .collect { state ->
                     installDialogState = state ?: app.gamenative.ui.component.dialog.state.MessageDialogState(false)
                 }
@@ -575,15 +580,15 @@ class GOGAppScreen : BaseAppScreen() {
         // Show install dialog if visible
         if (installDialogState.visible) {
             val onDismissRequest: (() -> Unit)? = {
-                hideInstallDialog(appId)
+                BaseAppScreen.hideInstallDialog(appId)
             }
             val onDismissClick: (() -> Unit)? = {
-                hideInstallDialog(appId)
+                BaseAppScreen.hideInstallDialog(appId)
             }
             val onConfirmClick: (() -> Unit)? = when (installDialogState.type) {
                 app.gamenative.ui.enums.DialogType.INSTALL_APP -> {
                     {
-                        hideInstallDialog(appId)
+                        BaseAppScreen.hideInstallDialog(appId)
                         performDownload(context, libraryItem) {}
                     }
                 }

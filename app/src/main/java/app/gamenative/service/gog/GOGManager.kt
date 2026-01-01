@@ -845,7 +845,7 @@ class GOGManager @Inject constructor(
 
                     if (exeFile.exists()) {
                         val parentDir = gameDir.parentFile ?: gameDir
-+                       val relativePath = exeFile.relativeTo(parentDir).path
+                        val relativePath = exeFile.relativeTo(parentDir).path
                         return Result.success(relativePath)
                     }
 
