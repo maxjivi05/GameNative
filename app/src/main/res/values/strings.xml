@@ -125,6 +125,10 @@
     <string name="delete">Delete</string>
     <string name="copy_from">Copy From</string>
     <string name="ok">Ok</string>
+    <string name="container_config_custom_resolution_title">Set Custom Resolution</string>
+    <string name="container_config_custom_resolution_separator">x</string>
+    <string name="container_config_custom_resolution_error_nonzero">Width and height must be greater than 0</string>
+    <string name="container_config_custom_resolution_error_aspect">Width must be greater than height</string>
     <string name="storage_info">Storage Info</string>
     <string name="duplicate">Duplicate</string>
     <string name="reconfigure">Reconfigure</string>
@@ -955,5 +959,4 @@
     <string name="gog_login_cancel">Cancel</string>
     <string name="gog_login_browser_error">Could not open browser</string>
 </resources>
-
 
