@@ -932,6 +932,28 @@
     <string name="wine_proton_containers_in_use">Conteneurs utilisant cette version :</string>
     <string name="wine_proton_no_containers_warning">Aucun conteneur n\'utilise actuellement cette version.</string>
     <string name="wine_proton_containers_will_break">Ces conteneurs ne fonctionneront plus si vous continuez :</string>
+
+    <!-- GOG Settings -->
+    <string name="gog_integration_title">Intégration GOG (Alpha)</string>
+    <string name="gog_settings_login_title">Connexion GOG</string>
+    <string name="gog_settings_login_subtitle">Connectez-vous à votre compte GOG</string>
+    <string name="gog_settings_sync_subtitle_syncing">Synchronisation…</string>
+    <string name="gog_settings_sync_subtitle_error">Erreur : %1$s</string>
+    <string name="gog_settings_sync_subtitle_success">✓ %1$d jeux synchronisés</string>
+    <string name="gog_settings_sync_subtitle_default">Récupérer votre bibliothèque de jeux GOG</string>
+    <string name="gog_login_success_title">Connexion réussie</string>
+    <string name="gog_login_success_message">Vous êtes maintenant connecté à GOG.\nNous allons maintenant synchroniser votre bibliothèque en arrière-plan.</string>
+
+    <!-- GOG Login Dialog -->
+    <string name="gog_login_title">Se connecter à GOG</string>
+    <string name="gog_login_auto_auth_info">Appuyez sur \'Ouvrir la connexion GOG\' et connectez-vous. Une fois connecté, veuillez copier l\'URL et coller ci-dessous</string>
+    <string name="gog_login_auth_example">Exemple : https://embed.gog.com/on_login_success?origin=client&amp;code=aaa</string>
+    <string name="gog_login_open_button">Ouvrir la connexion GOG</string>
+    <string name="gog_login_auth_code_label">Code d\'autorisation ou URL de réussite de connexion</string>
+    <string name="gog_login_auth_code_placeholder">Collez le code ou l\'url ici</string>
+    <string name="gog_login_button">Se connecter</string>
+    <string name="gog_login_cancel">Annuler</string>
+    <string name="gog_login_browser_error">Impossible d\'ouvrir le navigateur</string>
 </resources>
 
 
