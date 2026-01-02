@@ -209,10 +209,6 @@ chaquopy {
         pip {
             // Install GOGDL dependencies
             install("requests")
-            // Install legendary-android dependencies
-            install("filelock")
-            // Note: legendary-gl removed - using custom legendary-android bundled in src/main/python/
-            // legendary-gl uses multiprocessing which is incompatible with Android/Chaquopy
         }
     }
     sourceSets {
