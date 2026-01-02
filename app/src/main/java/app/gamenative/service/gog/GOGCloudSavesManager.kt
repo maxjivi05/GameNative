@@ -334,9 +334,6 @@ class GOGCloudSavesManager(
                 return@withContext emptyList()
             }
 
-            Timber.tag("GOG").d("[Cloud Saves] Response body length: ${responseBody.length} bytes")
-            Timber.tag("GOG").d("[Cloud Saves] Response body preview: ${responseBody.take(200)}")
-            
             val items = try {
                 JSONArray(responseBody)
             } catch (e: Exception) {
@@ -344,7 +341,7 @@ class GOGCloudSavesManager(
                 Timber.tag("GOG").e("[Cloud Saves] Response was: $responseBody")
                 return@withContext emptyList()
             }
-            
+
             Timber.tag("GOG").d("[Cloud Saves] Found ${items.length()} total items in cloud storage")
 
             val files = mutableListOf<CloudFile>()
