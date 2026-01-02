@@ -408,7 +408,7 @@ class GOGService : Service() {
                     for ((index, location) in saveLocations.withIndex()) {
                         try {
                             Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
-                            
+
                             // Log directory state BEFORE sync
                             try {
                                 val saveDir = java.io.File(location.location)
@@ -427,47 +427,36 @@ class GOGService : Service() {
                             } catch (e: Exception) {
                                 Timber.tag("GOG").e(e, "[Cloud Saves] [BEFORE] Failed to check directory")
                             }
-                            
+
                             // Get stored timestamp for this location
-                            val timestamp = instance.gogManager.getSyncTimestamp(appId, location.name)
+                            val timestampStr = instance.gogManager.getSyncTimestamp(appId, location.name)
+                            val timestamp = timestampStr.toLongOrNull() ?: 0L
 
-                            Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
+                            Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (clientId: ${location.clientId}, path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
 
-                            // Build command arguments (matching HeroicGamesLauncher format)
-                            val commandArgs = mutableListOf(
-                                "--auth-config-path", authConfigPath,
-                                "save-sync",
-                                location.location,
-                                gameId.toString(),
-                                "--os", "windows", // Android runs games through Wine
-                                "--ts", timestamp,
-                                "--name", location.name,
-                                "--prefered-action", preferredAction
+                            // Validate clientSecret is available
+                            if (location.clientSecret.isEmpty()) {
+                                Timber.tag("GOG").e("[Cloud Saves] Missing clientSecret for '${location.name}', skipping sync")
+                                continue
+                            }
+
+                            // Use Kotlin cloud saves manager instead of Python
+                            val cloudSavesManager = GOGCloudSavesManager(context)
+                            val newTimestamp = cloudSavesManager.syncSaves(
+                                clientId = location.clientId,
+                                clientSecret = location.clientSecret,
+                                localPath = location.location,
+                                dirname = location.name,
+                                lastSyncTimestamp = timestamp,
+                                preferredAction = preferredAction
                             )
-                            Timber.tag("GOG").d("[Cloud Saves] Executing Python command with args: ${commandArgs.joinToString(" ")}")
 
-                            // Execute sync command
-                            val result = GOGPythonBridge.executeCommand(*commandArgs.toTypedArray())
+                            if (newTimestamp > 0) {
+                                // Success - store new timestamp
+                                instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp.toString())
+                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
 
-                            if (result.isSuccess) {
-                                val output = result.getOrNull() ?: ""
-                                Timber.tag("GOG").d("[Cloud Saves] Python command output: $output")
-
-                                // Python save-sync returns timestamp on success, store it
-                                // CRITICAL: Validate that the output is a valid numeric timestamp
-                                val newTimestamp = output.trim()
-                                if (newTimestamp.isNotEmpty() && newTimestamp != "0") {
-                                    // Check if it's a valid timestamp (number with optional decimal point)
-                                    if (newTimestamp.matches(Regex("^\\d+(\\.\\d+)?$"))) {
-                                        instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp)
-                                        Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
-                                    } else {
-                                        Timber.tag("GOG").e("[Cloud Saves] Invalid timestamp format returned: '$newTimestamp' - expected numeric value")
-                                        allSucceeded = false
-                                    }
-                                } else {
-                                    Timber.tag("GOG").w("[Cloud Saves] No valid timestamp returned (output: '$newTimestamp')")
-                                }
+                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
 
                                 // Log the save files in the directory after sync
                                 try {
@@ -495,8 +484,7 @@ class GOGService : Service() {
 
                                 Timber.tag("GOG").i("[Cloud Saves] Successfully synced save location '${location.name}' for game $gameId")
                             } else {
-                                val error = result.exceptionOrNull()
-                                Timber.tag("GOG").e(error, "[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId")
+                                Timber.tag("GOG").e("[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId (timestamp: $newTimestamp)")
                                 allSucceeded = false
                             }
                         } catch (e: Exception) {

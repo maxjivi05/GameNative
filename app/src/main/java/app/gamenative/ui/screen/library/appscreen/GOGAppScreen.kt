@@ -447,6 +447,37 @@ class GOGAppScreen : BaseAppScreen() {
         isInstalled: Boolean,
     ): List<AppMenuOption> {
         val options = mutableListOf<AppMenuOption>()
+
+        // Add cloud save sync option for installed games
+        if (isInstalled) {
+            options.add(
+                AppMenuOption(
+                    optionType = AppOptionMenuType.ForceDownloadRemote,
+                    onClick = {
+                        Timber.tag(TAG).d("Manual cloud save sync requested for ${libraryItem.appId}")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val success = GOGService.syncCloudSaves(
+                                    context = context,
+                                    appId = libraryItem.appId,
+                                    preferredAction = "download"
+                                )
+                                withContext(Dispatchers.Main) {
+                                    if (success) {
+                                        Timber.tag(TAG).i("Cloud save sync completed successfully")
+                                    } else {
+                                        Timber.tag(TAG).e("Cloud save sync failed")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Timber.tag(TAG).e(e, "Failed to sync cloud saves")
+                            }
+                        }
+                    }
+                )
+            )
+        }
+
         return options
     }
 

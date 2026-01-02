@@ -109,6 +109,104 @@ object GOGAuthManager {
     }
 
     /**
+     * Get game-specific credentials using the game's clientId and clientSecret.
+     * This exchanges the Galaxy app's refresh token for a game-specific access token.
+     *
+     * @param context Application context
+     * @param clientId Game's client ID (from .info file)
+     * @param clientSecret Game's client secret (from build metadata)
+     * @return Game-specific credentials or error
+     */
+    suspend fun getGameCredentials(
+        context: Context,
+        clientId: String,
+        clientSecret: String
+    ): Result<GOGCredentials> {
+        return try {
+            val authFile = File(getAuthConfigPath(context))
+            if (!authFile.exists()) {
+                return Result.failure(Exception("No stored credentials found"))
+            }
+
+            // Read auth file
+            val authContent = authFile.readText()
+            val authJson = JSONObject(authContent)
+
+            // Check if we already have credentials for this game
+            if (authJson.has(clientId)) {
+                val gameCredentials = authJson.getJSONObject(clientId)
+
+                // Check if expired
+                val loginTime = gameCredentials.optDouble("loginTime", 0.0)
+                val expiresIn = gameCredentials.optInt("expires_in", 0)
+                val isExpired = System.currentTimeMillis() / 1000.0 >= loginTime + expiresIn
+
+                if (!isExpired) {
+                    // Return existing valid credentials
+                    return Result.success(GOGCredentials(
+                        accessToken = gameCredentials.getString("access_token"),
+                        refreshToken = gameCredentials.optString("refresh_token", ""),
+                        userId = gameCredentials.getString("user_id"),
+                        username = gameCredentials.optString("username", "GOG User")
+                    ))
+                }
+            }
+
+            // Need to get/refresh game-specific token
+            // Get Galaxy app's refresh token
+            val galaxyCredentials = if (authJson.has(GOGConstants.GOG_CLIENT_ID)) {
+                authJson.getJSONObject(GOGConstants.GOG_CLIENT_ID)
+            } else {
+                return Result.failure(Exception("No Galaxy credentials found"))
+            }
+
+            val refreshToken = galaxyCredentials.optString("refresh_token", "")
+            if (refreshToken.isEmpty()) {
+                return Result.failure(Exception("No refresh token available"))
+            }
+
+            // Request game-specific token using Galaxy's refresh token
+            Timber.d("Requesting game-specific token for clientId: $clientId")
+            val tokenUrl = "https://auth.gog.com/token?client_id=$clientId&client_secret=$clientSecret&grant_type=refresh_token&refresh_token=$refreshToken"
+
+            val request = okhttp3.Request.Builder()
+                .url(tokenUrl)
+                .get()
+                .build()
+
+            val response = okhttp3.OkHttpClient().newCall(request).execute()
+
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "Unknown error"
+                Timber.e("Failed to get game token: HTTP ${response.code} - $errorBody")
+                return Result.failure(Exception("Failed to get game-specific token: HTTP ${response.code}"))
+            }
+
+            val responseBody = response.body?.string() ?: return Result.failure(Exception("Empty response"))
+            val tokenJson = JSONObject(responseBody)
+
+            // Store the new game-specific credentials
+            tokenJson.put("loginTime", System.currentTimeMillis() / 1000.0)
+            authJson.put(clientId, tokenJson)
+
+            // Write updated auth file
+            authFile.writeText(authJson.toString(2))
+
+            Timber.i("Successfully obtained game-specific token for clientId: $clientId")
+
+            return Result.success(GOGCredentials(
+                accessToken = tokenJson.getString("access_token"),
+                refreshToken = tokenJson.optString("refresh_token", refreshToken),
+                userId = tokenJson.getString("user_id"),
+                username = tokenJson.optString("username", "GOG User")
+            ))
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get game-specific credentials")
+            Result.failure(e)
+        }
+    }
+
+    /**
      * Validate credentials by calling GOGDL auth command (without --code)
      * This will automatically refresh tokens if they're expired
      */
