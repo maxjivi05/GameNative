@@ -279,9 +279,36 @@ class MainViewModel @Inject constructor(
             val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
             Timber.tag("Exit").i("Got game id: $gameId")
             SteamService.notifyRunningProcesses()
-            SteamService.closeApp(gameId, isOffline.value) { prefix ->
-                PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
-            }.await()
+
+            // Check if this is a GOG game and sync cloud saves
+            val gameSource = ContainerUtils.extractGameSourceFromContainerId(appId)
+            if (gameSource == GameSource.GOG) {
+                Timber.tag("GOG").i("[Cloud Saves] GOG Game detected for $appId — syncing cloud saves after close")
+                // Sync cloud saves (upload local changes to cloud)
+                // Run in background, don't block UI
+                viewModelScope.launch(Dispatchers.IO) {
+                    try {
+                        Timber.tag("GOG").d("[Cloud Saves] Starting post-game upload sync for $appId")
+                        val syncSuccess = app.gamenative.service.gog.GOGService.syncCloudSaves(
+                            context = context,
+                            appId = appId,
+                            preferredAction = "upload"
+                        )
+                        if (syncSuccess) {
+                            Timber.tag("GOG").i("[Cloud Saves] Upload sync completed successfully for $appId")
+                        } else {
+                            Timber.tag("GOG").w("[Cloud Saves] Upload sync failed for $appId")
+                        }
+                    } catch (e: Exception) {
+                        Timber.tag("GOG").e(e, "[Cloud Saves] Exception during upload sync for $appId")
+                    }
+                }
+            } else {
+                // For Steam games, sync cloud saves
+                SteamService.closeApp(gameId, isOffline.value) { prefix ->
+                    PathType.from(prefix).toAbsPath(context, gameId, SteamService.userSteamId!!.accountID)
+                }.await()
+            }
 
             // Prompt user to save temporary container configuration if one was applied
             if (hadTemporaryOverride) {

@@ -10,6 +10,7 @@ import app.gamenative.data.GOGGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.NotificationHelper
+import app.gamenative.utils.ContainerUtils
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.*
@@ -32,26 +33,61 @@ class GOGService : Service() {
 
     companion object {
         private const val ACTION_SYNC_LIBRARY = "app.gamenative.GOG_SYNC_LIBRARY"
+        private const val ACTION_MANUAL_SYNC = "app.gamenative.GOG_MANUAL_SYNC"
+        private const val SYNC_THROTTLE_MILLIS = 15 * 60 * 1000L // 15 minutes
 
         private var instance: GOGService? = null
 
         // Sync tracking variables
         private var syncInProgress: Boolean = false
         private var backgroundSyncJob: Job? = null
+        private var lastSyncTimestamp: Long = 0L
+        private var hasPerformedInitialSync: Boolean = false
 
         val isRunning: Boolean
             get() = instance != null
 
+        /**
+         * Start the GOG service. Handles both first-time start and subsequent automatic syncs.
+         * - First-time start: Always syncs (no throttle)
+         * - Subsequent starts: Throttled to once per 15 minutes
+         */
         fun start(context: Context) {
-            val intent = Intent(context, GOGService::class.java)
-            if (!isRunning) {
-                Timber.d("[GOGService] Starting service for first time")
-                context.startForegroundService(intent)
-            } else {
-                Timber.d("[GOGService] Service already running, triggering sync")
+            // If already running, do nothing
+            if (isRunning) {
+                Timber.d("[GOGService] Service already running, skipping start")
+                return
+            }
+
+            // First-time start: always sync without throttle
+            if (!hasPerformedInitialSync) {
+                Timber.i("[GOGService] First-time start - starting service with initial sync")
+                val intent = Intent(context, GOGService::class.java)
                 intent.action = ACTION_SYNC_LIBRARY
                 context.startForegroundService(intent)
+                return
             }
+
+            // Subsequent starts: check throttle
+            val now = System.currentTimeMillis()
+            val timeSinceLastSync = now - lastSyncTimestamp
+
+            if (timeSinceLastSync >= SYNC_THROTTLE_MILLIS) {
+                Timber.i("[GOGService] Starting service with automatic sync (throttle passed)")
+                val intent = Intent(context, GOGService::class.java)
+                intent.action = ACTION_SYNC_LIBRARY
+                context.startForegroundService(intent)
+            } else {
+                val remainingMinutes = (SYNC_THROTTLE_MILLIS - timeSinceLastSync) / 1000 / 60
+                Timber.d("[GOGService] Skipping start - throttled (${remainingMinutes}min remaining)")
+            }
+        }
+
+        fun triggerLibrarySync(context: Context) {
+            Timber.i("[GOGService] Triggering manual library sync (bypasses throttle)")
+            val intent = Intent(context, GOGService::class.java)
+            intent.action = ACTION_MANUAL_SYNC
+            context.startForegroundService(intent)
         }
 
         fun stop() {
@@ -93,6 +129,43 @@ class GOGService : Service() {
             return GOGAuthManager.clearStoredCredentials(context)
         }
 
+        /**
+         * Logout from GOG - clears credentials, database, and stops service
+         */
+        suspend fun logout(context: Context): Result<Unit> {
+            return withContext(Dispatchers.IO) {
+                try {
+                    Timber.i("[GOGService] Logging out from GOG...")
+
+                    // Get instance first before stopping the service
+                    val instance = getInstance()
+                    if (instance == null) {
+                        Timber.w("[GOGService] Service instance not available during logout")
+                        return@withContext Result.failure(Exception("Service not running"))
+                    }
+
+                    // Clear stored credentials
+                    val credentialsCleared = clearStoredCredentials(context)
+                    if (!credentialsCleared) {
+                        Timber.w("[GOGService] Failed to clear credentials during logout")
+                    }
+
+                    // Clear all GOG games from database
+                    instance.gogManager.deleteAllGames()
+                    Timber.i("[GOGService] All GOG games removed from database")
+
+                    // Stop the service
+                    stop()
+
+                    Timber.i("[GOGService] Logout completed successfully")
+                    Result.success(Unit)
+                } catch (e: Exception) {
+                    Timber.e(e, "[GOGService] Error during logout")
+                    Result.failure(e)
+                }
+            }
+        }
+
         // ==========================================================================
         // SYNC & OPERATIONS
         // ==========================================================================
@@ -106,16 +179,6 @@ class GOGService : Service() {
         }
 
         fun isSyncInProgress(): Boolean = syncInProgress
-
-        /**
-         * Trigger a background library sync
-         * Can be called even if service is already running
-         */
-        fun triggerLibrarySync(context: Context) {
-            val intent = Intent(context, GOGService::class.java)
-            intent.action = ACTION_SYNC_LIBRARY
-            context.startForegroundService(intent)
-        }
 
         fun getInstance(): GOGService? = instance
 
@@ -285,6 +348,172 @@ class GOGService : Service() {
             return getInstance()?.gogManager?.deleteGame(context, libraryItem)
                 ?: Result.failure(Exception("Service not available"))
         }
+
+        /**
+         * Sync GOG cloud saves for a game
+         * @param context Android context
+         * @param appId Game app ID (e.g., "gog_123456")
+         * @param preferredAction Preferred sync action: "download", "upload", or "none"
+         * @return true if sync succeeded, false otherwise
+         */
+        suspend fun syncCloudSaves(context: Context, appId: String, preferredAction: String = "none"): Boolean = withContext(Dispatchers.IO) {
+            try {
+                Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
+
+                // Check if there's already a sync in progress for this appId
+                val serviceInstance = getInstance()
+                if (serviceInstance == null) {
+                    Timber.tag("GOG").e("[Cloud Saves] Service instance not available for sync start")
+                    return@withContext false
+                }
+
+                if (!serviceInstance.gogManager.startSync(appId)) {
+                    Timber.tag("GOG").w("[Cloud Saves] Sync already in progress for $appId, skipping duplicate sync")
+                    return@withContext false
+                }
+
+                try {
+                    val instance = getInstance()
+                    if (instance == null) {
+                        Timber.tag("GOG").e("[Cloud Saves] Service instance not available")
+                        return@withContext false
+                    }
+
+                    if (!GOGAuthManager.hasStoredCredentials(context)) {
+                        Timber.tag("GOG").e("[Cloud Saves] Cannot sync saves: not authenticated")
+                        return@withContext false
+                    }
+
+                    val authConfigPath = GOGAuthManager.getAuthConfigPath(context)
+                    Timber.tag("GOG").d("[Cloud Saves] Using auth config path: $authConfigPath")
+
+                    // Get game info
+                    val gameId = ContainerUtils.extractGameIdFromContainerId(appId)
+                    Timber.tag("GOG").d("[Cloud Saves] Extracted game ID: $gameId from appId: $appId")
+                    val game = instance.gogManager.getGameById(gameId.toString())
+
+                    if (game == null) {
+                        Timber.tag("GOG").e("[Cloud Saves] Game not found for appId: $appId")
+                        return@withContext false
+                    }
+                    Timber.tag("GOG").d("[Cloud Saves] Found game: ${game.title}")
+
+                    // Get save directory paths (Android runs games through Wine, so always Windows)
+                    Timber.tag("GOG").d("[Cloud Saves] Resolving save directory paths for $appId")
+                    val saveLocations = instance.gogManager.getSaveDirectoryPath(context, appId, game.title)
+
+                    if (saveLocations == null || saveLocations.isEmpty()) {
+                        Timber.tag("GOG").w("[Cloud Saves] No save locations found for game $appId (cloud saves may not be enabled)")
+                        return@withContext false
+                    }
+                    Timber.tag("GOG").i("[Cloud Saves] Found ${saveLocations.size} save location(s) for $appId")
+
+                    var allSucceeded = true
+
+                    // Sync each save location
+                    for ((index, location) in saveLocations.withIndex()) {
+                        try {
+                            Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
+
+                            // Log directory state BEFORE sync
+                            try {
+                                val saveDir = java.io.File(location.location)
+                                Timber.tag("GOG").d("[Cloud Saves] [BEFORE] Checking directory: ${location.location}")
+                                Timber.tag("GOG").d("[Cloud Saves] [BEFORE] Directory exists: ${saveDir.exists()}, isDirectory: ${saveDir.isDirectory}")
+                                if (saveDir.exists() && saveDir.isDirectory) {
+                                    val filesBefore = saveDir.listFiles()
+                                    if (filesBefore != null && filesBefore.isNotEmpty()) {
+                                        Timber.tag("GOG").i("[Cloud Saves] [BEFORE] ${filesBefore.size} files in '${location.name}': ${filesBefore.joinToString(", ") { it.name }}")
+                                    } else {
+                                        Timber.tag("GOG").i("[Cloud Saves] [BEFORE] Directory '${location.name}' is empty")
+                                    }
+                                } else {
+                                    Timber.tag("GOG").i("[Cloud Saves] [BEFORE] Directory '${location.name}' does not exist yet")
+                                }
+                            } catch (e: Exception) {
+                                Timber.tag("GOG").e(e, "[Cloud Saves] [BEFORE] Failed to check directory")
+                            }
+
+                            // Get stored timestamp for this location
+                            val timestampStr = instance.gogManager.getSyncTimestamp(appId, location.name)
+                            val timestamp = timestampStr.toLongOrNull() ?: 0L
+
+                            Timber.tag("GOG").i("[Cloud Saves] Syncing '${location.name}' for game $gameId (clientId: ${location.clientId}, path: ${location.location}, timestamp: $timestamp, action: $preferredAction)")
+
+                            // Validate clientSecret is available
+                            if (location.clientSecret.isEmpty()) {
+                                Timber.tag("GOG").e("[Cloud Saves] Missing clientSecret for '${location.name}', skipping sync")
+                                continue
+                            }
+
+                            // Use Kotlin cloud saves manager instead of Python
+                            val cloudSavesManager = GOGCloudSavesManager(context)
+                            val newTimestamp = cloudSavesManager.syncSaves(
+                                clientId = location.clientId,
+                                clientSecret = location.clientSecret,
+                                localPath = location.location,
+                                dirname = location.name,
+                                lastSyncTimestamp = timestamp,
+                                preferredAction = preferredAction
+                            )
+
+                            if (newTimestamp > 0) {
+                                // Success - store new timestamp
+                                instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp.toString())
+                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
+
+                                // Log the save files in the directory after sync
+                                try {
+                                    val saveDir = java.io.File(location.location)
+                                    if (saveDir.exists() && saveDir.isDirectory) {
+                                        val files = saveDir.listFiles()
+                                        if (files != null && files.isNotEmpty()) {
+                                            val fileList = files.joinToString(", ") { it.name }
+                                            Timber.tag("GOG").i("[Cloud Saves] [$preferredAction] Files in '${location.name}': $fileList (${files.size} files)")
+
+                                            // Log detailed file info
+                                            files.forEach { file ->
+                                                val size = if (file.isFile) "${file.length()} bytes" else "directory"
+                                                Timber.tag("GOG").d("[Cloud Saves] [$preferredAction]   - ${file.name} ($size)")
+                                            }
+                                        } else {
+                                            Timber.tag("GOG").w("[Cloud Saves] [$preferredAction] Directory '${location.name}' is empty at: ${location.location}")
+                                        }
+                                    } else {
+                                        Timber.tag("GOG").w("[Cloud Saves] [$preferredAction] Directory not found: ${location.location}")
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.tag("GOG").e(e, "[Cloud Saves] Failed to list files in directory: ${location.location}")
+                                }
+
+                                Timber.tag("GOG").i("[Cloud Saves] Successfully synced save location '${location.name}' for game $gameId")
+                            } else {
+                                Timber.tag("GOG").e("[Cloud Saves] Failed to sync save location '${location.name}' for game $gameId (timestamp: $newTimestamp)")
+                                allSucceeded = false
+                            }
+                        } catch (e: Exception) {
+                            Timber.tag("GOG").e(e, "[Cloud Saves] Exception syncing save location '${location.name}' for game $gameId")
+                            allSucceeded = false
+                        }
+                    }
+
+                    if (allSucceeded) {
+                        Timber.tag("GOG").i("[Cloud Saves] All save locations synced successfully for $appId")
+                        return@withContext true
+                    } else {
+                        Timber.tag("GOG").w("[Cloud Saves] Some save locations failed to sync for $appId")
+                        return@withContext false
+                    }
+                } finally {
+                    // Always end the sync, even if an exception occurred
+                    getInstance()?.gogManager?.endSync(appId)
+                    Timber.tag("GOG").d("[Cloud Saves] Sync completed and lock released for $appId")
+                }
+            } catch (e: Exception) {
+                Timber.tag("GOG").e(e, "[Cloud Saves] Failed to sync cloud saves for App ID: $appId")
+                return@withContext false
+            }
+        }
     }
 
     private lateinit var notificationHelper: NotificationHelper
@@ -314,9 +543,26 @@ class GOGService : Service() {
         val notification = notificationHelper.createForegroundNotification("GOG Service running...")
         startForeground(2, notification) // Use different ID than SteamService (which uses 1)
 
-        // Start background library sync if service is starting or sync action requested
-        if (intent?.action == ACTION_SYNC_LIBRARY || backgroundSyncJob == null || !backgroundSyncJob!!.isActive) {
-            Timber.i("[GOGService] Triggering background library sync")
+        // Determine if we should sync based on the action
+        val shouldSync = when (intent?.action) {
+            ACTION_MANUAL_SYNC -> {
+                Timber.i("[GOGService] Manual sync requested - bypassing throttle")
+                true
+            }
+            ACTION_SYNC_LIBRARY -> {
+                Timber.i("[GOGService] Automatic sync requested")
+                true
+            }
+            else -> {
+                // Service started without sync action (e.g., just to keep it alive)
+                Timber.d("[GOGService] Service started without sync action")
+                false
+            }
+        }
+
+        // Start background library sync if requested
+        if (shouldSync && (backgroundSyncJob == null || backgroundSyncJob?.isActive != true)) {
+            Timber.i("[GOGService] Starting background library sync")
             backgroundSyncJob?.cancel() // Cancel any existing job
             backgroundSyncJob = scope.launch {
                 try {
@@ -327,7 +573,11 @@ class GOGService : Service() {
                     if (syncResult.isFailure) {
                         Timber.w("[GOGService]: Failed to start background sync: ${syncResult.exceptionOrNull()?.message}")
                     } else {
-                        Timber.i("[GOGService]: Background library sync started successfully")
+                        Timber.i("[GOGService]: Background library sync completed successfully")
+                        // Update last sync timestamp on successful sync
+                        lastSyncTimestamp = System.currentTimeMillis()
+                        // Mark that initial sync has been performed
+                        hasPerformedInitialSync = true
                     }
                 } catch (e: Exception) {
                     Timber.e(e, "[GOGService]: Exception starting background sync")
@@ -335,7 +585,7 @@ class GOGService : Service() {
                     setSyncInProgress(false)
                 }
             }
-        } else {
+        } else if (shouldSync) {
             Timber.d("[GOGService] Background sync already in progress, skipping")
         }
 

@@ -106,52 +106,39 @@ object GOGPythonBridge {
     suspend fun executeCommand(vararg args: String): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
-                Timber.d("executeCommand called with args: ${args.joinToString(" ")}")
-
                 if (!Python.isStarted()) {
                     Timber.e("Python is not started! Cannot execute GOGDL command")
                     return@withContext Result.failure(Exception("Python environment not initialized"))
                 }
 
                 val python = Python.getInstance()
-                Timber.d("Python instance obtained successfully")
-
                 val sys = python.getModule("sys")
                 val io = python.getModule("io")
                 val originalArgv = sys.get("argv")
 
                 try {
-                    Timber.d("Importing gogdl.cli module...")
                     val gogdlCli = python.getModule("gogdl.cli")
-                    Timber.d("gogdl.cli module imported successfully")
 
                     // Set up arguments for argparse
                     val argsList = listOf("gogdl") + args.toList()
-                    Timber.d("Setting GOGDL arguments for argparse: ${args.joinToString(" ")}")
                     val pythonList = python.builtins.callAttr("list", argsList.toTypedArray())
                     sys.put("argv", pythonList)
-                    Timber.d("sys.argv set to: $argsList")
 
                     // Capture stdout
                     val stdoutCapture = io.callAttr("StringIO")
                     val originalStdout = sys.get("stdout")
                     sys.put("stdout", stdoutCapture)
-                    Timber.d("stdout capture configured")
 
                     // Execute the main function
-                    Timber.d("Calling gogdl.cli.main()...")
                     gogdlCli.callAttr("main")
-                    Timber.d("gogdl.cli.main() completed")
 
                     // Get the captured output
                     val output = stdoutCapture.callAttr("getvalue").toString()
-                    Timber.d("GOGDL raw output (length: ${output.length}): $output")
 
                     // Restore original stdout
                     sys.put("stdout", originalStdout)
 
                     if (output.isNotEmpty()) {
-                        Timber.d("Returning success with output")
                         Result.success(output)
                     } else {
                         Timber.w("GOGDL execution completed but output is empty")
@@ -159,17 +146,14 @@ object GOGPythonBridge {
                     }
 
                 } catch (e: Exception) {
-                    Timber.e(e, "GOGDL execution exception: ${e.javaClass.simpleName} - ${e.message}")
-                    Timber.e("Exception stack trace: ${e.stackTraceToString()}")
+                    Timber.e(e, "GOGDL execution failed: ${e.message}")
                     Result.failure(Exception("GOGDL execution failed: ${e.message}", e))
                 } finally {
                     // Restore original sys.argv
                     sys.put("argv", originalArgv)
-                    Timber.d("sys.argv restored")
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to execute GOGDL command: ${args.joinToString(" ")}")
-                Timber.e("Outer exception stack trace: ${e.stackTraceToString()}")
                 Result.failure(Exception("GOGDL execution failed: ${e.message}", e))
             }
         }
@@ -201,7 +185,6 @@ object GOGPythonBridge {
                     // Try to set progress callback if gogdl supports it
                     try {
                         gogdlModule.put("_progress_callback", progressCallback)
-                        Timber.d("Progress callback registered with GOGDL")
                     } catch (e: Exception) {
                         Timber.w(e, "Could not register progress callback, will use estimation")
                     }
@@ -210,7 +193,6 @@ object GOGPythonBridge {
 
                     // Set up arguments for argparse
                     val argsList = listOf("gogdl") + args.toList()
-                    Timber.d("Setting GOGDL arguments: ${args.joinToString(" ")}")
                     val pythonList = python.builtins.callAttr("list", argsList.toTypedArray())
                     sys.put("argv", pythonList)
 

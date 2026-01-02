@@ -64,6 +64,9 @@ class PluviaApp : SplitCompatApplication() {
         // Init our datastore preferences.
         PrefManager.init(this)
 
+        // Initialize GOGConstants
+        app.gamenative.service.gog.GOGConstants.init(this)
+
         DownloadService.populateDownloadService(this)
 
         appScope.launch {

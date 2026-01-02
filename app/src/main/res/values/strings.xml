@@ -43,11 +43,11 @@
     <string name="gog_uninstall_game_title">Uninstall Game</string>
     <string name="gog_uninstall_confirmation_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
     <string name="gog_install_game_title">Download Game</string>
-    <string name="gog_install_confirmation_message">Download %1$s (%2$s)? Make sure you have enough storage space.</string>
+    <string name="gog_install_confirmation_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tAvailable Space: %2$s</string>
     <string name="epic_uninstall_game_title">Uninstall Game</string>
     <string name="epic_uninstall_game_message">Are you sure you want to uninstall %1$s? This action cannot be undone.</string>
     <string name="epic_install_game_title">Download Game</string>
-    <string name="epic_install_game_message">Download %1$s?\nDownload: %2$s, Install: %3$s.\nMake sure you have enough storage space.</string>
+    <string name="epic_install_game_message">The app being installed has the following space requirements. Would you like to proceed?\n\n\tDownload Size: %1$s\n\tSize on Disk: %2$s\n\tAvailable Space: %3$s</string>
     <string name="steam_never">Never</string>
     <string name="steam_continue">Continue</string>
     <string name="header_img_desc">App header image</string>
@@ -129,6 +129,10 @@
     <string name="delete">Delete</string>
     <string name="copy_from">Copy From</string>
     <string name="ok">Ok</string>
+    <string name="container_config_custom_resolution_title">Set Custom Resolution</string>
+    <string name="container_config_custom_resolution_separator">x</string>
+    <string name="container_config_custom_resolution_error_nonzero">Width and height must be greater than 0</string>
+    <string name="container_config_custom_resolution_error_aspect">Width must be greater than height</string>
     <string name="storage_info">Storage Info</string>
     <string name="duplicate">Duplicate</string>
     <string name="reconfigure">Reconfigure</string>
@@ -950,15 +954,23 @@
 
     <!-- GOG Login Dialog -->
     <string name="gog_login_title">Sign in to GOG</string>
-    <string name="gog_login_instruction">Sign in with your GOG account:</string>
-    <string name="gog_login_auto_auth_info">Tap \'Open GOG Login\' and sign in. Once logged in, please take the code from the success URL OR copy the entire URL and paste it below</string>
-    <string name="gog_login_auth_example">Example: https://embed.gog.com/on_login_success?origin=client&amp;code=AUTH_CODE_HERE</string>
+    <string name="gog_login_auto_auth_info">Tap \'Open GOG Login\' and sign in. Once logged in, please copy the URL and paste below</string>
+    <string name="gog_login_auth_example">Example: https://embed.gog.com/on_login_success?origin=client&amp;code=aaa</string>
     <string name="gog_login_open_button">Open GOG Login</string>
-    <string name="gog_login_manual_entry">Paste your code or success URL below</string>
     <string name="gog_login_auth_code_label">Authorization Code or login success URL</string>
     <string name="gog_login_auth_code_placeholder">Paste code or url here</string>
     <string name="gog_login_button">Login</string>
     <string name="gog_login_cancel">Cancel</string>
     <string name="gog_login_browser_error">Could not open browser</string>
+
+    <!-- GOG Logout -->
+    <string name="gog_settings_logout_title">Logout</string>
+    <string name="gog_settings_logout_subtitle">Sign out from your GOG account</string>
+    <string name="gog_logout_confirm_title">Logout from GOG?</string>
+    <string name="gog_logout_confirm_message">This will remove your GOG credentials and clear your GOG library from this device. You can sign in again at any time.</string>
+    <string name="gog_logout_confirm">Logout</string>
+    <string name="gog_logout_success">Logged out from GOG successfully</string>
+    <string name="gog_logout_failed">Failed to logout: %s</string>
+    <string name="gog_logout_in_progress">Logging out from GOG…</string>
 </resources>
 

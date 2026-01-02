@@ -33,6 +33,7 @@ import coil.memory.MemoryCache
 import coil.request.CachePolicy
 import app.gamenative.events.AndroidEvent
 import app.gamenative.service.SteamService
+import app.gamenative.service.gog.GOGService
 import app.gamenative.ui.PluviaMain
 import app.gamenative.ui.enums.Orientation
 import app.gamenative.utils.AnimatedPngDecoder
@@ -249,6 +250,11 @@ class MainActivity : ComponentActivity() {
         if (SteamService.isConnected && !SteamService.isLoggedIn && !isChangingConfigurations && !SteamService.isGameRunning) {
             Timber.i("Stopping Steam Service")
             SteamService.stop()
+        }
+
+        if(GOGService.isRunning) {
+            Timber.i("Stopping GOG Service")
+            GOGService.stop()
         }
     }
 

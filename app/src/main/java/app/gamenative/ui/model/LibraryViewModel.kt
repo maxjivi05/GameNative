@@ -226,6 +226,10 @@ class LibraryViewModel @Inject constructor(
                 } else {
                     Timber.tag("LibraryViewModel").d("No newly owned games discovered during refresh")
                 }
+                if (app.gamenative.service.gog.GOGService.hasStoredCredentials(context)) {
+                    Timber.tag("LibraryViewModel").i("Triggering GOG library refresh")
+                    app.gamenative.service.gog.GOGService.triggerLibrarySync(context)
+                }
             } catch (e: Exception) {
                 Timber.tag("LibraryViewModel").e(e, "Failed to refresh owned games from server")
             } finally {
@@ -234,6 +238,7 @@ class LibraryViewModel @Inject constructor(
             }
         }
     }
+
     fun addCustomGameFolder(path: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val normalizedPath = File(path).absolutePath
@@ -449,7 +454,6 @@ class LibraryViewModel @Inject constructor(
                     if (entry.isInstalled) 0 else 1
                 }.thenBy { it.item.name.lowercase() }
             ).also { sortedList ->
-                // Log first few items to verify sorting
                 if (sortedList.isNotEmpty()) {
                     val installedCount = sortedList.count { it.isInstalled }
                     val first10 = sortedList.take(10)
