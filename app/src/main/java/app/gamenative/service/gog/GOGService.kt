@@ -361,7 +361,13 @@ class GOGService : Service() {
                 Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
 
                 // Check if there's already a sync in progress for this appId
-                if (!instance!!.gogManager.startSync(appId)) {
+                val serviceInstance = getInstance()
+                if (serviceInstance == null) {
+                    Timber.tag("GOG").e("[Cloud Saves] Service instance not available for sync start")
+                    return@withContext false
+                }
+
+                if (!serviceInstance.gogManager.startSync(appId)) {
                     Timber.tag("GOG").w("[Cloud Saves] Sync already in progress for $appId, skipping duplicate sync")
                     return@withContext false
                 }
@@ -456,8 +462,6 @@ class GOGService : Service() {
                                 instance.gogManager.setSyncTimestamp(appId, location.name, newTimestamp.toString())
                                 Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
 
-                                Timber.tag("GOG").d("[Cloud Saves] Updated timestamp for '${location.name}': $newTimestamp")
-
                                 // Log the save files in the directory after sync
                                 try {
                                     val saveDir = java.io.File(location.location)
@@ -502,7 +506,7 @@ class GOGService : Service() {
                     }
                 } finally {
                     // Always end the sync, even if an exception occurred
-                    instance!!.gogManager.endSync(appId)
+                    getInstance()?.gogManager?.endSync(appId)
                     Timber.tag("GOG").d("[Cloud Saves] Sync completed and lock released for $appId")
                 }
             } catch (e: Exception) {
@@ -557,7 +561,7 @@ class GOGService : Service() {
         }
 
         // Start background library sync if requested
-        if (shouldSync && (backgroundSyncJob == null || !backgroundSyncJob!!.isActive)) {
+        if (shouldSync && (backgroundSyncJob == null || backgroundSyncJob?.isActive != true)) {
             Timber.i("[GOGService] Starting background library sync")
             backgroundSyncJob?.cancel() // Cancel any existing job
             backgroundSyncJob = scope.launch {

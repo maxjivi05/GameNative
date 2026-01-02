@@ -315,8 +315,8 @@ class GOGAppScreen : BaseAppScreen() {
 
         if (downloadInfo != null) {
             Timber.tag(TAG).i("Cancelling GOG download: ${libraryItem.appId}")
-            GOGService.cleanupDownload(gameId)
             downloadInfo.cancel()
+            GOGService.cleanupDownload(gameId)
         }
     }
 
@@ -332,8 +332,8 @@ class GOGAppScreen : BaseAppScreen() {
         if (isDownloading) {
             // Cancel download immediately if currently downloading
             Timber.tag(TAG).i("Cancelling active download for GOG game: ${libraryItem.appId}")
-            GOGService.cleanupDownload(gameId)
             downloadInfo.cancel()
+            GOGService.cleanupDownload(gameId)
             android.widget.Toast.makeText(
                 context,
                 "Download cancelled",

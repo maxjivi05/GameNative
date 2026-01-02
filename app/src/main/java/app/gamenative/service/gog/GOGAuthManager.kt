@@ -174,25 +174,26 @@ object GOGAuthManager {
                 .get()
                 .build()
 
-            val response = okhttp3.OkHttpClient().newCall(request).execute()
+            val tokenJson = okhttp3.OkHttpClient().newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: "Unknown error"
+                    Timber.e("Failed to get game token: HTTP ${response.code} - $errorBody")
+                    return Result.failure(Exception("Failed to get game-specific token: HTTP ${response.code}"))
+                }
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                Timber.e("Failed to get game token: HTTP ${response.code} - $errorBody")
-                return Result.failure(Exception("Failed to get game-specific token: HTTP ${response.code}"))
+                val responseBody = response.body?.string() ?: return Result.failure(Exception("Empty response"))
+                val json = JSONObject(responseBody)
+
+                // Store the new game-specific credentials
+                json.put("loginTime", System.currentTimeMillis() / 1000.0)
+                authJson.put(clientId, json)
+
+                // Write updated auth file
+                authFile.writeText(authJson.toString(2))
+
+                Timber.i("Successfully obtained game-specific token for clientId: $clientId")
+                json
             }
-
-            val responseBody = response.body?.string() ?: return Result.failure(Exception("Empty response"))
-            val tokenJson = JSONObject(responseBody)
-
-            // Store the new game-specific credentials
-            tokenJson.put("loginTime", System.currentTimeMillis() / 1000.0)
-            authJson.put(clientId, tokenJson)
-
-            // Write updated auth file
-            authFile.writeText(authJson.toString(2))
-
-            Timber.i("Successfully obtained game-specific token for clientId: $clientId")
 
             return Result.success(GOGCredentials(
                 accessToken = tokenJson.getString("access_token"),

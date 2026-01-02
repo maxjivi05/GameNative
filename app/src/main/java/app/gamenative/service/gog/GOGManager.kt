@@ -950,7 +950,14 @@ class GOGManager @Inject constructor(
 
         val gameInstallDir = File(gameInstallPath)
         val execFile = File(gameInstallPath, executablePath)
-        val relativePath = execFile.relativeTo(gameInstallDir).path.replace('/', '\\')
+        // Handle potential IllegalArgumentException if paths don't share a common ancestor
+        val relativePath = try {
+            execFile.relativeTo(gameInstallDir).path.replace('/', '\\')
+        } catch (e: IllegalArgumentException) {
+            Timber.e(e, "Failed to compute relative path from $gameInstallDir to $execFile")
+            return "\"explorer.exe\""
+        }
+
         val windowsPath = "$gogDriveLetter:\\$relativePath"
 
         // Set working directory
@@ -1073,74 +1080,75 @@ class GOGManager @Inject constructor(
                 .build()
 
             val response = Net.http.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                Timber.tag("GOG").w("[Cloud Saves] Failed to fetch remote config: HTTP ${response.code}")
-                return@withContext null
-            }
-            Timber.tag("GOG").d("[Cloud Saves] Successfully fetched remote config")
-
-            val responseBody = response.body?.string()
-            if (responseBody == null) {
-                Timber.tag("GOG").w("[Cloud Saves] Empty response body from remote config")
-                return@withContext null
-            }
-            val configJson = JSONObject(responseBody)
-
-            // Parse response: content.Windows.cloudStorage.locations
-            val content = configJson.optJSONObject("content")
-            if (content == null) {
-                Timber.tag("GOG").w("[Cloud Saves] No 'content' field in remote config response")
-                return@withContext null
-            }
-
-            val platformContent = content.optJSONObject(syncPlatform)
-            if (platformContent == null) {
-                Timber.tag("GOG").d("[Cloud Saves] No cloud storage config for platform $syncPlatform")
-                return@withContext null
-            }
-
-            val cloudStorage = platformContent.optJSONObject("cloudStorage")
-            if (cloudStorage == null) {
-                Timber.tag("GOG").d("[Cloud Saves] No cloudStorage field for platform $syncPlatform")
-                return@withContext null
-            }
-
-            val enabled = cloudStorage.optBoolean("enabled", false)
-            if (!enabled) {
-                Timber.tag("GOG").d("[Cloud Saves] Cloud saves not enabled for game $gameId")
-                return@withContext null
-            }
-            Timber.tag("GOG").d("[Cloud Saves] Cloud saves are enabled for game $gameId")
-
-            val locationsArray = cloudStorage.optJSONArray("locations")
-            if (locationsArray == null || locationsArray.length() == 0) {
-                Timber.tag("GOG").d("[Cloud Saves] No save locations configured for game $gameId")
-                return@withContext null
-            }
-            Timber.tag("GOG").d("[Cloud Saves] Found ${locationsArray.length()} location(s) in config")
-
-            val locations = mutableListOf<GOGCloudSavesLocationTemplate>()
-            for (i in 0 until locationsArray.length()) {
-                val locationObj = locationsArray.getJSONObject(i)
-                val name = locationObj.optString("name", "__default")
-                val location = locationObj.optString("location", "")
-                if (location.isNotEmpty()) {
-                    Timber.tag("GOG").d("[Cloud Saves] Location ${i + 1}: '$name' = '$location'")
-                    locations.add(GOGCloudSavesLocationTemplate(name, location))
-                } else {
-                    Timber.tag("GOG").w("[Cloud Saves] Skipping location ${i + 1} with empty path")
+            response.use {
+                if (!response.isSuccessful) {
+                    Timber.tag("GOG").w("[Cloud Saves] Failed to fetch remote config: HTTP ${response.code}")
+                    return@withContext null
                 }
-            }
+                Timber.tag("GOG").d("[Cloud Saves] Successfully fetched remote config")
 
-            // Cache the result
-            if (locations.isNotEmpty()) {
-                remoteConfigCache[clientId] = locations
-                Timber.tag("GOG").d("[Cloud Saves] Cached ${locations.size} save locations for clientId $clientId")
-            }
+                val responseBody = response.body?.string()
+                if (responseBody == null) {
+                    Timber.tag("GOG").w("[Cloud Saves] Empty response body from remote config")
+                    return@withContext null
+                }
+                val configJson = JSONObject(responseBody)
 
-            Timber.tag("GOG").i("[Cloud Saves] Found ${locations.size} save location(s) for game $gameId")
-            return@withContext Pair(clientSecret, locations)
+                // Parse response: content.Windows.cloudStorage.locations
+                val content = configJson.optJSONObject("content")
+                if (content == null) {
+                    Timber.tag("GOG").w("[Cloud Saves] No 'content' field in remote config response")
+                    return@withContext null
+                }
+
+                val platformContent = content.optJSONObject(syncPlatform)
+                if (platformContent == null) {
+                    Timber.tag("GOG").d("[Cloud Saves] No cloud storage config for platform $syncPlatform")
+                    return@withContext null
+                }
+
+                val cloudStorage = platformContent.optJSONObject("cloudStorage")
+                if (cloudStorage == null) {
+                    Timber.tag("GOG").d("[Cloud Saves] No cloudStorage field for platform $syncPlatform")
+                    return@withContext null
+                }
+
+                val enabled = cloudStorage.optBoolean("enabled", false)
+                if (!enabled) {
+                    Timber.tag("GOG").d("[Cloud Saves] Cloud saves not enabled for game $gameId")
+                    return@withContext null
+                }
+                Timber.tag("GOG").d("[Cloud Saves] Cloud saves are enabled for game $gameId")
+
+                val locationsArray = cloudStorage.optJSONArray("locations")
+                if (locationsArray == null || locationsArray.length() == 0) {
+                    Timber.tag("GOG").d("[Cloud Saves] No save locations configured for game $gameId")
+                    return@withContext null
+                }
+                Timber.tag("GOG").d("[Cloud Saves] Found ${locationsArray.length()} location(s) in config")
+
+                val locations = mutableListOf<GOGCloudSavesLocationTemplate>()
+                for (i in 0 until locationsArray.length()) {
+                    val locationObj = locationsArray.getJSONObject(i)
+                    val name = locationObj.optString("name", "__default")
+                    val location = locationObj.optString("location", "")
+                    if (location.isNotEmpty()) {
+                        Timber.tag("GOG").d("[Cloud Saves] Location ${i + 1}: '$name' = '$location'")
+                        locations.add(GOGCloudSavesLocationTemplate(name, location))
+                    } else {
+                        Timber.tag("GOG").w("[Cloud Saves] Skipping location ${i + 1} with empty path")
+                    }
+                }
+
+                // Cache the result
+                if (locations.isNotEmpty()) {
+                    remoteConfigCache[clientId] = locations
+                    Timber.tag("GOG").d("[Cloud Saves] Cached ${locations.size} save locations for clientId $clientId")
+                }
+
+                Timber.tag("GOG").i("[Cloud Saves] Found ${locations.size} save location(s) for game $gameId")
+                return@withContext Pair(clientSecret, locations)
+            }
         } catch (e: Exception) {
             Timber.tag("GOG").e(e, "[Cloud Saves] Failed to get save sync location for appId $appId")
             return@withContext null
@@ -1230,7 +1238,6 @@ class GOGManager @Inject constructor(
                     Timber.tag("GOG").w(e, "[Cloud Saves] Failed to normalize path, using as-is: $resolvedPath")
                 }
 
-
                 resolvedLocations.add(
                     GOGCloudSavesLocation(
                         name = locationTemplate.name,
@@ -1277,30 +1284,33 @@ class GOGManager @Inject constructor(
                 .header("Authorization", "Bearer ${credentials.accessToken}")
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                Timber.tag("GOG").w("[Cloud Saves] Build metadata fetch failed: ${response.code}")
-                return@withContext null
+            // Fetch the builds list and extract manifest link
+            val manifestLink = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    Timber.tag("GOG").w("[Cloud Saves] Build metadata fetch failed: ${response.code}")
+                    return@withContext null
+                }
+
+                val jsonStr = response.body?.string() ?: ""
+                val buildsJson = JSONObject(jsonStr)
+
+                // Get first build
+                val items = buildsJson.optJSONArray("items")
+                if (items == null || items.length() == 0) {
+                    Timber.tag("GOG").w("[Cloud Saves] No builds found for game $gameId")
+                    return@withContext null
+                }
+
+                val firstBuild = items.getJSONObject(0)
+                val link = firstBuild.optString("link", "")
+                if (link.isEmpty()) {
+                    Timber.tag("GOG").w("[Cloud Saves] No manifest link in first build")
+                    return@withContext null
+                }
+
+                Timber.tag("GOG").d("[Cloud Saves] Fetching build manifest from: $link")
+                link
             }
-
-            val jsonStr = response.body?.string() ?: ""
-            val buildsJson = JSONObject(jsonStr)
-
-            // Get first build
-            val items = buildsJson.optJSONArray("items")
-            if (items == null || items.length() == 0) {
-                Timber.tag("GOG").w("[Cloud Saves] No builds found for game $gameId")
-                return@withContext null
-            }
-
-            val firstBuild = items.getJSONObject(0)
-            val manifestLink = firstBuild.optString("link", "")
-            if (manifestLink.isEmpty()) {
-                Timber.tag("GOG").w("[Cloud Saves] No manifest link in first build")
-                return@withContext null
-            }
-
-            Timber.tag("GOG").d("[Cloud Saves] Fetching build manifest from: $manifestLink")
 
             // Fetch the build manifest
             val manifestRequest = Request.Builder()
@@ -1309,78 +1319,80 @@ class GOGManager @Inject constructor(
                 .build()
 
             val manifestResponse = httpClient.newCall(manifestRequest).execute()
-            if (!manifestResponse.isSuccessful) {
-                Timber.tag("GOG").w("[Cloud Saves] Manifest fetch failed: ${manifestResponse.code}")
-                return@withContext null
-            }
+            manifestResponse.use {
+                if (!manifestResponse.isSuccessful) {
+                    Timber.tag("GOG").w("[Cloud Saves] Manifest fetch failed: ${manifestResponse.code}")
+                    return@withContext null
+                }
 
-            // Log response headers to debug compression
-            val contentEncoding = manifestResponse.header("Content-Encoding")
-            val contentType = manifestResponse.header("Content-Type")
-            Timber.tag("GOG").d("[Cloud Saves] Response headers - Content-Encoding: $contentEncoding, Content-Type: $contentType")
+                // Log response headers to debug compression
+                val contentEncoding = manifestResponse.header("Content-Encoding")
+                val contentType = manifestResponse.header("Content-Type")
+                Timber.tag("GOG").d("[Cloud Saves] Response headers - Content-Encoding: $contentEncoding, Content-Type: $contentType")
 
-            // Read the response bytes (can only read body once)
-            val manifestBytes = manifestResponse.body?.bytes() ?: return@withContext null
+                // Read the response bytes (can only read body once)
+                val manifestBytes = manifestResponse.body?.bytes() ?: return@withContext null
 
-            // Check compression type by magic bytes
-            val isGzipped = manifestBytes.size >= 2 &&
-                            manifestBytes[0] == 0x1f.toByte() &&
-                            manifestBytes[1] == 0x8b.toByte()
+                // Check compression type by magic bytes
+                val isGzipped = manifestBytes.size >= 2 &&
+                                manifestBytes[0] == 0x1f.toByte() &&
+                                manifestBytes[1] == 0x8b.toByte()
 
-            val isZlib = manifestBytes.size >= 2 &&
-                         manifestBytes[0] == 0x78.toByte() &&
-                         (manifestBytes[1] == 0x9c.toByte() ||
-                          manifestBytes[1] == 0xda.toByte() ||
-                          manifestBytes[1] == 0x01.toByte())
+                val isZlib = manifestBytes.size >= 2 &&
+                             manifestBytes[0] == 0x78.toByte() &&
+                             (manifestBytes[1] == 0x9c.toByte() ||
+                              manifestBytes[1] == 0xda.toByte() ||
+                              manifestBytes[1] == 0x01.toByte())
 
-            Timber.tag("GOG").d("[Cloud Saves] Manifest bytes: ${manifestBytes.size}, isGzipped: $isGzipped, isZlib: $isZlib")
+                Timber.tag("GOG").d("[Cloud Saves] Manifest bytes: ${manifestBytes.size}, isGzipped: $isGzipped, isZlib: $isZlib")
 
-            // Decompress based on detected format
-            val manifestStr = when {
-                isGzipped -> {
-                    try {
-                        Timber.tag("GOG").d("[Cloud Saves] Decompressing gzip manifest")
-                        val gzipStream = java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(manifestBytes))
-                        gzipStream.bufferedReader().use { it.readText() }
-                    } catch (e: Exception) {
-                        Timber.tag("GOG").e(e, "[Cloud Saves] Gzip decompression failed")
-                        return@withContext null
+                // Decompress based on detected format
+                val manifestStr = when {
+                    isGzipped -> {
+                        try {
+                            Timber.tag("GOG").d("[Cloud Saves] Decompressing gzip manifest")
+                            val gzipStream = java.util.zip.GZIPInputStream(java.io.ByteArrayInputStream(manifestBytes))
+                            gzipStream.bufferedReader().use { it.readText() }
+                        } catch (e: Exception) {
+                            Timber.tag("GOG").e(e, "[Cloud Saves] Gzip decompression failed")
+                            return@withContext null
+                        }
+                    }
+                    isZlib -> {
+                        try {
+                            Timber.tag("GOG").d("[Cloud Saves] Decompressing zlib manifest")
+                            val inflaterStream = java.util.zip.InflaterInputStream(java.io.ByteArrayInputStream(manifestBytes))
+                            inflaterStream.bufferedReader().use { it.readText() }
+                        } catch (e: Exception) {
+                            Timber.tag("GOG").e(e, "[Cloud Saves] Zlib decompression failed")
+                            return@withContext null
+                        }
+                    }
+                    else -> {
+                        // Not compressed, read as plain text
+                        Timber.tag("GOG").d("[Cloud Saves] Not compressed, reading as UTF-8")
+                        String(manifestBytes, Charsets.UTF_8)
                     }
                 }
-                isZlib -> {
-                    try {
-                        Timber.tag("GOG").d("[Cloud Saves] Decompressing zlib manifest")
-                        val inflaterStream = java.util.zip.InflaterInputStream(java.io.ByteArrayInputStream(manifestBytes))
-                        inflaterStream.bufferedReader().use { it.readText() }
-                    } catch (e: Exception) {
-                        Timber.tag("GOG").e(e, "[Cloud Saves] Zlib decompression failed")
-                        return@withContext null
-                    }
+
+                if (manifestStr.isEmpty()) {
+                    Timber.tag("GOG").w("[Cloud Saves] Empty manifest response")
+                    return@withContext null
                 }
-                else -> {
-                    // Not compressed, read as plain text
-                    Timber.tag("GOG").d("[Cloud Saves] Not compressed, reading as UTF-8")
-                    String(manifestBytes, Charsets.UTF_8)
+
+                Timber.tag("GOG").d("[Cloud Saves] Parsing manifest JSON (${manifestStr.take(100)}...)")
+                val manifestJson = JSONObject(manifestStr)
+
+                // Extract clientSecret from manifest
+                val clientSecret = manifestJson.optString("clientSecret", "")
+                if (clientSecret.isEmpty()) {
+                    Timber.tag("GOG").w("[Cloud Saves] No clientSecret in manifest for game $gameId")
+                    return@withContext null
                 }
+
+                Timber.tag("GOG").d("[Cloud Saves] Successfully retrieved clientSecret for game $gameId")
+                return@withContext clientSecret
             }
-
-            if (manifestStr.isEmpty()) {
-                Timber.tag("GOG").w("[Cloud Saves] Empty manifest response")
-                return@withContext null
-            }
-
-            Timber.tag("GOG").d("[Cloud Saves] Parsing manifest JSON (${manifestStr.take(100)}...)")
-            val manifestJson = JSONObject(manifestStr)
-
-            // Extract clientSecret from manifest
-            val clientSecret = manifestJson.optString("clientSecret", "")
-            if (clientSecret.isEmpty()) {
-                Timber.tag("GOG").w("[Cloud Saves] No clientSecret in manifest for game $gameId")
-                return@withContext null
-            }
-
-            Timber.tag("GOG").d("[Cloud Saves] Successfully retrieved clientSecret for game $gameId")
-            return@withContext clientSecret
 
         } catch (e: Exception) {
             Timber.tag("GOG").e(e, "[Cloud Saves] Failed to get clientSecret for game $gameId")
