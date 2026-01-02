@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -184,6 +185,37 @@ fun XServerScreen(
 
     val container = remember(appId) {
         ContainerUtils.getContainer(context, appId)
+    }
+
+    // Hyper Frames (OnePlus 15 / 165Hz support)
+    LaunchedEffect(Unit) {
+        val graphicsDriverConfig = KeyValueSet(container.getGraphicsDriverConfig())
+        val isAdrenotoolsTurnip = graphicsDriverConfig.get("adrenotoolsTurnip", "1")
+        val driverVersion = graphicsDriverConfig.get("version", DefaultVersion.WRAPPER)
+
+        // Check if using system driver and adreno toolkit is disabled
+        val isWrapperOrSystem = !listOf("turnip", "virgl", "vortek", "adreno", "sd-8-elite").contains(container.graphicsDriver)
+
+        if (isWrapperOrSystem && driverVersion == "System" && isAdrenotoolsTurnip == "0") {
+            val activity = context as? Activity
+            activity?.let { act ->
+                act.window?.let { window ->
+                    val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        act.display
+                    } else {
+                        @Suppress("DEPRECATION")
+                        act.windowManager.defaultDisplay
+                    }
+
+                    display?.supportedModes?.maxByOrNull { it.refreshRate }?.let { maxMode ->
+                        Timber.i("Hyper Frames: Setting preferred display mode to ${maxMode.modeId} (${maxMode.refreshRate} Hz)")
+                        val layoutParams = window.attributes
+                        layoutParams.preferredDisplayModeId = maxMode.modeId
+                        window.attributes = layoutParams
+                    }
+                }
+            }
+        }
     }
 
     val xServerState = rememberSaveable(stateSaver = XServerState.Saver) {
