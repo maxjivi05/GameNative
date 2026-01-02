@@ -173,7 +173,7 @@ enum class PathType {
                 // ImageFs needs home/xuser/.wine
                 ImageFs.WINEPREFIX
             }
-            
+
             // Handle %USERPROFILE% first to avoid partial replacements
             if (mappedPath.contains("%USERPROFILE%/Saved Games") || mappedPath.contains("%USERPROFILE%\\Saved Games")) {
                 val savedGamesPath = Paths.get(

@@ -359,13 +359,13 @@ class GOGService : Service() {
         suspend fun syncCloudSaves(context: Context, appId: String, preferredAction: String = "none"): Boolean = withContext(Dispatchers.IO) {
             try {
                 Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
-                
+
                 // Check if there's already a sync in progress for this appId
                 if (!instance!!.gogManager.startSync(appId)) {
                     Timber.tag("GOG").w("[Cloud Saves] Sync already in progress for $appId, skipping duplicate sync")
                     return@withContext false
                 }
-                
+
                 try {
                     val instance = getInstance()
                     if (instance == null) {
@@ -408,6 +408,26 @@ class GOGService : Service() {
                     for ((index, location) in saveLocations.withIndex()) {
                         try {
                             Timber.tag("GOG").d("[Cloud Saves] Processing location ${index + 1}/${saveLocations.size}: '${location.name}'")
+                            
+                            // Log directory state BEFORE sync
+                            try {
+                                val saveDir = java.io.File(location.location)
+                                Timber.tag("GOG").d("[Cloud Saves] [BEFORE] Checking directory: ${location.location}")
+                                Timber.tag("GOG").d("[Cloud Saves] [BEFORE] Directory exists: ${saveDir.exists()}, isDirectory: ${saveDir.isDirectory}")
+                                if (saveDir.exists() && saveDir.isDirectory) {
+                                    val filesBefore = saveDir.listFiles()
+                                    if (filesBefore != null && filesBefore.isNotEmpty()) {
+                                        Timber.tag("GOG").i("[Cloud Saves] [BEFORE] ${filesBefore.size} files in '${location.name}': ${filesBefore.joinToString(", ") { it.name }}")
+                                    } else {
+                                        Timber.tag("GOG").i("[Cloud Saves] [BEFORE] Directory '${location.name}' is empty")
+                                    }
+                                } else {
+                                    Timber.tag("GOG").i("[Cloud Saves] [BEFORE] Directory '${location.name}' does not exist yet")
+                                }
+                            } catch (e: Exception) {
+                                Timber.tag("GOG").e(e, "[Cloud Saves] [BEFORE] Failed to check directory")
+                            }
+                            
                             // Get stored timestamp for this location
                             val timestamp = instance.gogManager.getSyncTimestamp(appId, location.name)
 
@@ -432,7 +452,7 @@ class GOGService : Service() {
                             if (result.isSuccess) {
                                 val output = result.getOrNull() ?: ""
                                 Timber.tag("GOG").d("[Cloud Saves] Python command output: $output")
-                                
+
                                 // Python save-sync returns timestamp on success, store it
                                 // CRITICAL: Validate that the output is a valid numeric timestamp
                                 val newTimestamp = output.trim()
@@ -448,6 +468,31 @@ class GOGService : Service() {
                                 } else {
                                     Timber.tag("GOG").w("[Cloud Saves] No valid timestamp returned (output: '$newTimestamp')")
                                 }
+
+                                // Log the save files in the directory after sync
+                                try {
+                                    val saveDir = java.io.File(location.location)
+                                    if (saveDir.exists() && saveDir.isDirectory) {
+                                        val files = saveDir.listFiles()
+                                        if (files != null && files.isNotEmpty()) {
+                                            val fileList = files.joinToString(", ") { it.name }
+                                            Timber.tag("GOG").i("[Cloud Saves] [$preferredAction] Files in '${location.name}': $fileList (${files.size} files)")
+
+                                            // Log detailed file info
+                                            files.forEach { file ->
+                                                val size = if (file.isFile) "${file.length()} bytes" else "directory"
+                                                Timber.tag("GOG").d("[Cloud Saves] [$preferredAction]   - ${file.name} ($size)")
+                                            }
+                                        } else {
+                                            Timber.tag("GOG").w("[Cloud Saves] [$preferredAction] Directory '${location.name}' is empty at: ${location.location}")
+                                        }
+                                    } else {
+                                        Timber.tag("GOG").w("[Cloud Saves] [$preferredAction] Directory not found: ${location.location}")
+                                    }
+                                } catch (e: Exception) {
+                                    Timber.tag("GOG").e(e, "[Cloud Saves] Failed to list files in directory: ${location.location}")
+                                }
+
                                 Timber.tag("GOG").i("[Cloud Saves] Successfully synced save location '${location.name}' for game $gameId")
                             } else {
                                 val error = result.exceptionOrNull()

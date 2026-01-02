@@ -28,6 +28,7 @@ import app.gamenative.utils.StorageUtils
 import com.winlator.container.Container
 import com.winlator.core.envvars.EnvVars
 import com.winlator.xenvironment.components.GuestProgramLauncherComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -72,6 +73,7 @@ data class GameSizeInfo(
 @Singleton
 class GOGManager @Inject constructor(
     private val gogGameDao: GOGGameDao,
+    @ApplicationContext private val context: Context,
 ) {
 
     // Thread-safe cache for download sizes
@@ -83,10 +85,17 @@ class GOGManager @Inject constructor(
     private val remoteConfigCache = ConcurrentHashMap<String, List<GOGCloudSavesLocationTemplate>>()
 
     // Timestamp storage for sync state (gameId_locationName -> timestamp)
+    // Persisted to disk to survive app restarts
     private val syncTimestamps = ConcurrentHashMap<String, String>()
+    private val timestampFile = File(context.filesDir, "gog_sync_timestamps.json")
 
     // Track active sync operations to prevent concurrent syncs
     private val activeSyncs = ConcurrentHashMap.newKeySet<String>()
+
+    init {
+        // Load persisted timestamps on initialization
+        loadTimestampsFromDisk()
+    }
 
     suspend fun getGameById(gameId: String): GOGGame? {
         return withContext(Dispatchers.IO) {
@@ -1239,6 +1248,8 @@ class GOGManager @Inject constructor(
         val key = "${appId}_$locationName"
         syncTimestamps[key] = timestamp
         Timber.d("Stored sync timestamp for $key: $timestamp")
+        // Persist to disk
+        saveTimestampsToDisk()
     }
 
     /**
@@ -1256,6 +1267,42 @@ class GOGManager @Inject constructor(
      */
     fun endSync(appId: String) {
         activeSyncs.remove(appId)
+    }
+
+    /**
+     * Load timestamps from disk
+     */
+    private fun loadTimestampsFromDisk() {
+        try {
+            if (timestampFile.exists()) {
+                val json = timestampFile.readText()
+                val map = org.json.JSONObject(json)
+                map.keys().forEach { key ->
+                    syncTimestamps[key] = map.getString(key)
+                }
+                Timber.tag("GOG").i("[Cloud Saves] Loaded ${syncTimestamps.size} sync timestamps from disk")
+            } else {
+                Timber.tag("GOG").d("[Cloud Saves] No persisted timestamps found (first run)")
+            }
+        } catch (e: Exception) {
+            Timber.tag("GOG").e(e, "[Cloud Saves] Failed to load timestamps from disk")
+        }
+    }
+
+    /**
+     * Save timestamps to disk
+     */
+    private fun saveTimestampsToDisk() {
+        try {
+            val json = org.json.JSONObject()
+            syncTimestamps.forEach { (key, value) ->
+                json.put(key, value)
+            }
+            timestampFile.writeText(json.toString())
+            Timber.tag("GOG").d("[Cloud Saves] Saved ${syncTimestamps.size} timestamps to disk")
+        } catch (e: Exception) {
+            Timber.tag("GOG").e(e, "[Cloud Saves] Failed to save timestamps to disk")
+        }
     }
 
     // ==========================================================================
