@@ -970,28 +970,32 @@ object SteamUtils {
 
             override fun onResponse(call: Call, res: Response) {
                 res.use {
-                    val body = it.body?.string() ?: run { callback(-1); return }
-                    Timber.i("[DX Fetch] Raw fbody etchDirect3DMajor for body=%s", body)
-                    val arr = JSONObject(body)
-                        .optJSONArray("cargoquery") ?: run { callback(-1); return }
+                    try {
+                        val body = it.body?.string() ?: run { callback(-1); return }
+                        Timber.i("[DX Fetch] Raw body fetchDirect3DMajor for body=%s", body)
+                        val arr = JSONObject(body)
+                            .optJSONArray("cargoquery") ?: run { callback(-1); return }
 
-                    // There should be at most one row; take the first.
-                    val raw = arr.optJSONObject(0)
-                        ?.optJSONObject("title")
-                        ?.optString("Direct3D versions")
-                        ?.trim() ?: ""
+                        // There should be at most one row; take the first.
+                        val raw = arr.optJSONObject(0)
+                            ?.optJSONObject("title")
+                            ?.optString("Direct3D versions")
+                            ?.trim() ?: ""
 
-                    Timber.i("[DX Fetch] Raw fetchDirect3DMajor for raw=%s", raw)
+                        Timber.i("[DX Fetch] Raw fetchDirect3DMajor for raw=%s", raw)
 
-                    // Extract highest DX major number present.
-                    val dx = Regex("\\b(9|10|11|12)\\b")
-                        .findAll(raw)
-                        .map { it.value.toInt() }
-                        .maxOrNull() ?: -1
+                        // Extract highest DX major number present.
+                        val dx = Regex("\\b(9|10|11|12)\\b")
+                            .findAll(raw)
+                            .map { it.value.toInt() }
+                            .maxOrNull() ?: -1
 
-                    Timber.i("[DX Fetch] dx fetchDirect3DMajor is dx=%d", dx)
+                        Timber.i("[DX Fetch] dx fetchDirect3DMajor is dx=%d", dx)
 
-                    callback(dx)
+                        callback(dx)
+                    } catch (e: Exception){
+                        callback(-1)
+                    }
                 }
             }
         })
