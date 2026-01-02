@@ -21,10 +21,7 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import java.util.concurrent.TimeUnit
 
-/**
- * Manages GOG cloud save synchronization in pure Kotlin
- * Replaces Python-based implementation to avoid stdout contamination issues
- */
+
 class GOGCloudSavesManager(
     private val context: Context
 ) {
