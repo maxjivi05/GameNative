@@ -37,9 +37,13 @@ class ProgressCallback(private val downloadInfo: DownloadInfo) {
             // Also set percentage-based progress for compatibility
             downloadInfo.setProgress(progress)
 
-            // Update status message with ETA
+            // Update status message with ETA or progress info
             if (eta.isNotEmpty() && eta != "00:00:00") {
                 downloadInfo.updateStatusMessage("ETA: $eta")
+            } else if (percent > 0f) {
+                downloadInfo.updateStatusMessage(String.format("%.1f%%", percent))
+            } else {
+                downloadInfo.updateStatusMessage("Starting...")
             }
 
             if (percent > 0f) {
