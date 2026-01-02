@@ -182,14 +182,15 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         // Get the number of enabled players directly from ControllerManager.
         final int enabledPlayerCount = MAX_PLAYERS;
+        File filesDir = environment.getContext().getFilesDir();
         for (int i = 0; i < enabledPlayerCount; i++) {
             String memPath;
             if (i == 0) {
                 // Player 1 uses the original, non-numbered path that is known to work.
-                memPath = "/data/data/app.gamenative/files/imagefs/tmp/gamepad.mem";
+                memPath = new File(filesDir, "imagefs/tmp/gamepad.mem").getAbsolutePath();
             } else {
                 // Players 2, 3, 4 use a 1-based index.
-                memPath = "/data/data/app.gamenative/files/imagefs/tmp/gamepad" + i + ".mem";
+                memPath = new File(filesDir, "imagefs/tmp/gamepad" + i + ".mem").getAbsolutePath();
             }
 
             File memFile = new File(memPath);
@@ -289,7 +290,8 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
 
         String ld_preload = "";
         String sysvPath = imageFs.getLibDir() + "/libandroid-sysvshm.so";
-        String evshimPath = imageFs.getLibDir() + "/libevshim.so";
+        // String evshimPath = imageFs.getLibDir() + "/libevshim.so";
+        String evshimPath = context.getApplicationInfo().nativeLibraryDir + "/libevshim.so";
         String replacePath = imageFs.getLibDir() + "/libredirect-bionic.so";
 
         if (new File(sysvPath).exists()) ld_preload += sysvPath;
@@ -299,7 +301,7 @@ public class BionicProgramLauncherComponent extends GuestProgramLauncherComponen
         ld_preload += ":" + replacePath;
 
         envVars.put("LD_PRELOAD", ld_preload);
-
+        envVars.put("EVSHIM_GAMEPAD_PATH", new File(filesDir, "imagefs/tmp/gamepad").getAbsolutePath());
         envVars.put("EVSHIM_SHM_NAME", "controller-shm0");
 
         // Check for specific shared memory libraries

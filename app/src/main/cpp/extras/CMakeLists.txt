@@ -17,3 +17,6 @@ target_link_libraries(extras
         GLESv2
         GLESv3
         adrenotools)
+
+add_library(evshim SHARED evshim.c)
+target_link_libraries(evshim log dl)

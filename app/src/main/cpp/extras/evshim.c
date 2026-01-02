@@ -167,12 +167,21 @@ static void initialize_all_pads(void)
 
 
     /* per-player setup */
+    const char *base_path = getenv("EVSHIM_GAMEPAD_PATH");
+
     for (int i = 0; i < players; ++i) {
 
         char path[256];
-        snprintf(path, sizeof path,
-                 "/data/data/app.gamenative/files/imagefs/tmp/gamepad%s.mem",
-                 (i == 0) ? "" : (char[2]){'0' + i, '\0'});
+        if (base_path) {
+            snprintf(path, sizeof path,
+                     "%s%s.mem",
+                     base_path,
+                     (i == 0) ? "" : (char[2]){'0' + i, '\0'});
+        } else {
+            snprintf(path, sizeof path,
+                     "/data/data/app.gamenative/files/imagefs/tmp/gamepad%s.mem",
+                     (i == 0) ? "" : (char[2]){'0' + i, '\0'});
+        }
 
         /* open once – store for reader + writer */
         read_fd  [i] = open(path, O_RDONLY);

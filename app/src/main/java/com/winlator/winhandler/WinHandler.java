@@ -520,7 +520,8 @@ public class WinHandler {
         try {
             this.localhost = InetAddress.getLocalHost();
             // Player 1 (currentController) gets the original non-numbered file
-            String p1_mem_path = "/data/data/app.gamenative/files/imagefs/tmp/gamepad.mem";
+            File filesDir = activity.getFilesDir();
+            String p1_mem_path = new File(filesDir, "imagefs/tmp/gamepad.mem").getAbsolutePath();
             File p1_memFile = new File(p1_mem_path);
             p1_memFile.getParentFile().mkdirs();
             try (RandomAccessFile raf = new RandomAccessFile(p1_memFile, "rw")) {
@@ -530,7 +531,7 @@ public class WinHandler {
                 Log.i(TAG, "Successfully created and mapped gamepad file for Player 1");
             }
             for (int i = 0; i < extraGamepadBuffers.length; i++) {
-                String extra_mem_path = "/data/data/app.gamenative/files/imagefs/tmp/gamepad" + (i + 1) + ".mem";
+                String extra_mem_path = new File(filesDir, "imagefs/tmp/gamepad" + (i + 1) + ".mem").getAbsolutePath();
                 File extra_memFile = new File(extra_mem_path);
                 try (RandomAccessFile raf = new RandomAccessFile(extra_memFile, "rw")) {
                     raf.setLength(64);
