@@ -175,9 +175,16 @@ class GOGCloudSavesManager(
             Timber.tag("GOG-CloudSaves").d("Using game-specific credentials for userId: ${credentials.userId}, clientId: $clientId")
 
             // Get cloud files using game-specific clientId in URL path
+            Timber.tag("GOG").d("[Cloud Saves] Fetching cloud file list for dirname: $dirname")
             val cloudFiles = getCloudFiles(credentials.userId, clientId, dirname, credentials.accessToken)
+            Timber.tag("GOG").d("[Cloud Saves] Retrieved ${cloudFiles.size} total cloud files")
             val downloadableCloud = cloudFiles.filter { !it.isDeleted }
-            Timber.tag("GOG-CloudSaves").i("Found ${downloadableCloud.size} cloud file(s)")
+            Timber.tag("GOG").i("[Cloud Saves] Found ${downloadableCloud.size} downloadable cloud file(s) (excluding deleted)")
+            if (downloadableCloud.isNotEmpty()) {
+                downloadableCloud.forEach { file ->
+                    Timber.tag("GOG").d("[Cloud Saves]   - Cloud file: ${file.relativePath} (md5: ${file.md5Hash}, modified: ${file.updateTime})")
+                }
+            }
 
             // Handle simple cases first
             when {
@@ -302,7 +309,7 @@ class GOGCloudSavesManager(
         try {
             // List all files (don't include dirname in URL - it's used as a prefix filter)
             val url = "$CLOUD_STORAGE_BASE_URL/v1/$userId/$clientId"
-            Timber.tag("GOG-CloudSaves").d("Fetching cloud files from: $url")
+            Timber.tag("GOG").d("[Cloud Saves] API Request: GET $url (dirname filter: $dirname)")
 
             val request = Request.Builder()
                 .url(url)
@@ -316,16 +323,27 @@ class GOGCloudSavesManager(
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string() ?: "No response body"
-                Timber.tag("GOG-CloudSaves").e("Failed to fetch cloud files: HTTP ${response.code}")
-                Timber.tag("GOG-CloudSaves").e("Response body: $errorBody")
-                Timber.tag("GOG-CloudSaves").e("Request URL: $url")
-                Timber.tag("GOG-CloudSaves").e("Request headers: ${request.headers}")
+                Timber.tag("GOG").e("[Cloud Saves] Failed to fetch cloud files: HTTP ${response.code}")
+                Timber.tag("GOG").e("[Cloud Saves] Response body: $errorBody")
                 return@withContext emptyList()
             }
 
-            val responseBody = response.body?.string() ?: return@withContext emptyList()
+            val responseBody = response.body?.string() ?: ""
+            if (responseBody.isEmpty()) {
+                Timber.tag("GOG").d("[Cloud Saves] Empty response body from cloud storage API")
+                return@withContext emptyList()
+            }
+            
+            Timber.tag("GOG").d("[Cloud Saves] Response body length: ${responseBody.length} bytes")
             val json = JSONObject(responseBody)
-            val items = json.optJSONArray("items") ?: return@withContext emptyList()
+            val items = json.optJSONArray("items")
+            
+            if (items == null) {
+                Timber.tag("GOG").d("[Cloud Saves] No 'items' array in response")
+                return@withContext emptyList()
+            }
+            
+            Timber.tag("GOG").d("[Cloud Saves] Found ${items.length()} total items in cloud storage")
 
             val files = mutableListOf<CloudFile>()
             for (i in 0 until items.length()) {
@@ -333,6 +351,8 @@ class GOGCloudSavesManager(
                 val name = fileObj.optString("name", "")
                 val hash = fileObj.optString("hash", "")
                 val lastModified = fileObj.optString("last_modified")
+
+                Timber.tag("GOG").d("[Cloud Saves]   Examining item $i: name='$name', dirname='$dirname'")
 
                 // Filter files that belong to this save location (name starts with dirname/)
                 if (name.isNotEmpty() && hash.isNotEmpty() && name.startsWith("$dirname/")) {
@@ -345,10 +365,13 @@ class GOGCloudSavesManager(
                     // Remove the dirname prefix to get relative path
                     val relativePath = name.removePrefix("$dirname/")
                     files.add(CloudFile(relativePath, hash, lastModified, timestamp))
+                    Timber.tag("GOG").d("[Cloud Saves]     ✓ Matched: relativePath='$relativePath'")
+                } else {
+                    Timber.tag("GOG").d("[Cloud Saves]     ✗ Skipped (doesn't match dirname or missing data)")
                 }
             }
 
-            Timber.tag("GOG-CloudSaves").d("Retrieved ${files.size} cloud files for dirname '$dirname'")
+            Timber.tag("GOG").i("[Cloud Saves] Retrieved ${files.size} cloud files for dirname '$dirname'")
             files
 
         } catch (e: Exception) {

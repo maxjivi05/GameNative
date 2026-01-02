@@ -1190,10 +1190,10 @@ class GOGManager @Inject constructor(
             // Fetch save locations from API (Android runs games through Wine, so always Windows)
             Timber.tag("GOG").d("[Cloud Saves] Fetching save locations from API")
             val result = getSaveSyncLocation(context, appId, installPath)
-            
+
             val clientSecret: String
             val locations: List<GOGCloudSavesLocationTemplate>
-            
+
             // If no locations from API, use default Windows path
             if (result == null || result.second.isEmpty()) {
                 clientSecret = ""
