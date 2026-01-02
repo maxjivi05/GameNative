@@ -333,13 +333,15 @@ class GOGCloudSavesManager(
                 Timber.tag("GOG").d("[Cloud Saves] Empty response body from cloud storage API")
                 return@withContext emptyList()
             }
-            
+
             Timber.tag("GOG").d("[Cloud Saves] Response body length: ${responseBody.length} bytes")
-            val json = JSONObject(responseBody)
-            val items = json.optJSONArray("items")
+            Timber.tag("GOG").d("[Cloud Saves] Response body preview: ${responseBody.take(200)}")
             
-            if (items == null) {
-                Timber.tag("GOG").d("[Cloud Saves] No 'items' array in response")
+            val items = try {
+                JSONArray(responseBody)
+            } catch (e: Exception) {
+                Timber.tag("GOG").e(e, "[Cloud Saves] Failed to parse JSON array response")
+                Timber.tag("GOG").e("[Cloud Saves] Response was: $responseBody")
                 return@withContext emptyList()
             }
             
