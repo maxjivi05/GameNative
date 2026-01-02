@@ -46,7 +46,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "app.gamenative"
+        applicationId = "com.miHoYo.GenshinImpact"
 
         minSdk = 26
         targetSdk = 28
