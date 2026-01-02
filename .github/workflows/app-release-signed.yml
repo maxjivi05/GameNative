@@ -31,15 +31,14 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v4
 
-    # REPLACED: Secrets are removed. Empty strings "" prevent the Java syntax error.
-    - name: Inject credentials
+    # FIX: Manually writes dummy values to local.properties.
+    # This ensures BuildConfig.java contains valid code like: String KEY = "placeholder";
+    - name: Inject dummy credentials
       run: |
-        cat <<EOF > local.properties
-        POSTHOG_API_KEY=""
-        POSTHOG_HOST=""
-        SUPABASE_URL=""
-        SUPABASE_KEY=""
-        EOF
+        echo 'POSTHOG_API_KEY="placeholder"' > local.properties
+        echo 'POSTHOG_HOST="placeholder"' >> local.properties
+        echo 'SUPABASE_URL="placeholder"' >> local.properties
+        echo 'SUPABASE_KEY="placeholder"' >> local.properties
 
     - name: Install Android SDK Build Tools
       run: |
@@ -49,7 +48,7 @@ jobs:
         fi
         yes | "$SDKMANAGER" --install "build-tools;34.0.0"
 
-    # CHANGED: Switched to assembleDebug so we don't need signing keys
+    # Changed to assembleDebug (does not require release keys)
     - name: Build with Gradle
       run: ./gradlew assembleDebug
 
