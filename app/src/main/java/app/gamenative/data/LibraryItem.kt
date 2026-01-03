@@ -7,7 +7,7 @@ enum class GameSource {
     STEAM,
     CUSTOM_GAME,
     GOG,
-    EPIC
+    EPIC,
     // Add other platforms here..
 }
 
@@ -15,7 +15,7 @@ enum class GameCompatibilityStatus {
     NOT_COMPATIBLE,
     UNKNOWN,
     COMPATIBLE,
-    GPU_COMPATIBLE
+    GPU_COMPATIBLE,
 }
 
 /**
@@ -35,7 +35,7 @@ data class LibraryItem(
     val clientIconUrl: String
         get() = when (gameSource) {
             GameSource.STEAM -> if (iconHash.isNotEmpty()) {
-                Constants.Library.ICON_URL + "${gameId}/$iconHash.ico"
+                Constants.Library.ICON_URL + "$gameId/$iconHash.ico"
             } else {
                 ""
             }
@@ -59,7 +59,7 @@ data class LibraryItem(
                 }
             }
             GameSource.EPIC -> {
-                if(iconHash.isEmpty()){
+                if (iconHash.isEmpty()) {
                     ""
                 } else {
                     iconHash // EPIC stores the full URL.

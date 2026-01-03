@@ -1,9 +1,7 @@
 package app.gamenative
 
 import android.os.StrictMode
-import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.NavController
-import app.gamenative.events.AndroidEvent
 import app.gamenative.events.EventDispatcher
 import app.gamenative.service.DownloadService
 import app.gamenative.utils.ContainerMigrator
@@ -27,7 +25,6 @@ import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.annotations.SupabaseInternal
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
-import io.github.jan.supabase.network.supabaseApi
 import io.ktor.client.plugins.HttpTimeout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,7 +70,7 @@ class PluviaApp : SplitCompatApplication() {
             ContainerMigrator.migrateLegacyContainersIfNeeded(
                 context = applicationContext,
                 onProgressUpdate = null,
-                onComplete = null
+                onComplete = null,
             )
         }
 
@@ -158,15 +155,15 @@ class PluviaApp : SplitCompatApplication() {
 
             supabase = createSupabaseClient(
                 supabaseUrl = BuildConfig.SUPABASE_URL,
-                supabaseKey = BuildConfig.SUPABASE_KEY
+                supabaseKey = BuildConfig.SUPABASE_KEY,
             ) {
                 Timber.d("Configuring Supabase client")
                 httpConfig {
                     Timber.d("Setting up HTTP timeouts")
                     install(HttpTimeout) {
-                        requestTimeoutMillis = 30_000   // overall call
-                        connectTimeoutMillis = 15_000   // TCP handshake / TLS
-                        socketTimeoutMillis  = 30_000   // idle socket
+                        requestTimeoutMillis = 30_000 // overall call
+                        connectTimeoutMillis = 15_000 // TCP handshake / TLS
+                        socketTimeoutMillis = 30_000 // idle socket
                     }
                 }
                 install(Postgrest)

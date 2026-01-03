@@ -2,9 +2,9 @@ package app.gamenative.service.epic
 
 import android.content.Context
 import app.gamenative.data.EpicCredentials
+import java.io.File
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.File
 
 /**
  * Manages Epic Games authentication and account operations.
@@ -84,7 +84,7 @@ object EpicAuthManager {
                 refreshToken = authResponse.refreshToken,
                 accountId = authResponse.accountId,
                 displayName = authResponse.displayName,
-                expiresAt = authResponse.expiresAt
+                expiresAt = authResponse.expiresAt,
             )
 
             saveCredentials(context, credentials)
@@ -129,7 +129,7 @@ object EpicAuthManager {
                     refreshToken = authResponse.refreshToken,
                     accountId = authResponse.accountId,
                     displayName = authResponse.displayName,
-                    expiresAt = authResponse.expiresAt
+                    expiresAt = authResponse.expiresAt,
                 )
 
                 saveCredentials(context, refreshedCredentials)
@@ -192,7 +192,7 @@ object EpicAuthManager {
                 refreshToken = json.getString("refresh_token"),
                 accountId = json.getString("account_id"),
                 displayName = json.getString("display_name"),
-                expiresAt = json.getLong("expires_at")
+                expiresAt = json.getLong("expires_at"),
             )
         } catch (e: Exception) {
             Timber.e(e, "Failed to load credentials")

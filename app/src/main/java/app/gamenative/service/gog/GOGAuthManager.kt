@@ -2,9 +2,9 @@ package app.gamenative.service.gog
 
 import android.content.Context
 import app.gamenative.data.GOGCredentials
+import java.io.File
 import org.json.JSONObject
 import timber.log.Timber
-import java.io.File
 
 /**
  * Manages GOG authentication and account operations.
@@ -17,7 +17,6 @@ import java.io.File
  * Uses GOGPythonBridge for all GOGDL command execution.
  */
 object GOGAuthManager {
-
 
     fun getAuthConfigPath(context: Context): String {
         return "${context.filesDir}/gog_auth.json"
@@ -57,7 +56,7 @@ object GOGAuthManager {
 
             val result = GOGPythonBridge.executeCommand(
                 "--auth-config-path", authConfigPath,
-                "auth", "--code", actualCode
+                "auth", "--code", actualCode,
             )
 
             Timber.d("GOGDL executeCommand result: isSuccess=${result.isSuccess}")
@@ -120,7 +119,7 @@ object GOGAuthManager {
     suspend fun getGameCredentials(
         context: Context,
         clientId: String,
-        clientSecret: String
+        clientSecret: String,
     ): Result<GOGCredentials> {
         return try {
             val authFile = File(getAuthConfigPath(context))
@@ -143,12 +142,14 @@ object GOGAuthManager {
 
                 if (!isExpired) {
                     // Return existing valid credentials
-                    return Result.success(GOGCredentials(
-                        accessToken = gameCredentials.getString("access_token"),
-                        refreshToken = gameCredentials.optString("refresh_token", ""),
-                        userId = gameCredentials.getString("user_id"),
-                        username = gameCredentials.optString("username", "GOG User")
-                    ))
+                    return Result.success(
+                        GOGCredentials(
+                            accessToken = gameCredentials.getString("access_token"),
+                            refreshToken = gameCredentials.optString("refresh_token", ""),
+                            userId = gameCredentials.getString("user_id"),
+                            username = gameCredentials.optString("username", "GOG User"),
+                        ),
+                    )
                 }
             }
 
@@ -195,12 +196,14 @@ object GOGAuthManager {
                 json
             }
 
-            return Result.success(GOGCredentials(
-                accessToken = tokenJson.getString("access_token"),
-                refreshToken = tokenJson.optString("refresh_token", refreshToken),
-                userId = tokenJson.getString("user_id"),
-                username = tokenJson.optString("username", "GOG User")
-            ))
+            return Result.success(
+                GOGCredentials(
+                    accessToken = tokenJson.getString("access_token"),
+                    refreshToken = tokenJson.optString("refresh_token", refreshToken),
+                    userId = tokenJson.getString("user_id"),
+                    username = tokenJson.optString("username", "GOG User"),
+                ),
+            )
         } catch (e: Exception) {
             Timber.e(e, "Failed to get game-specific credentials")
             Result.failure(e)
@@ -330,7 +333,6 @@ object GOGAuthManager {
             // Create credentials from GOGDL output
             val credentials = createCredentialsFromJson(outputJson)
             return Result.success(credentials)
-
         } catch (e: Exception) {
             Timber.e(e, "Failed to parse GOGDL output")
             // Fallback: check if auth file exists

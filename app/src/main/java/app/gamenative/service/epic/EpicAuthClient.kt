@@ -150,6 +150,42 @@ object EpicAuthClient {
         }
     }
 
+    /**
+     * Get OAuth exchange code for game launch
+     *
+     * GET https://account-public-service-prod03.ol.epicgames.com/account/api/oauth/exchange
+     * Auth: Bearer <access_token>
+     */
+    suspend fun getExchangeCode(accessToken: String): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val url = "https://${EpicConstants.OAUTH_HOST}/account/api/oauth/exchange"
+
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $accessToken")
+                .header("User-Agent", EpicConstants.USER_AGENT)
+                .get()
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            val body = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                Timber.e("Failed to get exchange code: ${response.code} - $body")
+                return@withContext Result.failure(Exception("HTTP ${response.code}: $body"))
+            }
+
+            val json = JSONObject(body)
+            val code = json.getString("code")
+
+            Timber.d("Got exchange code for game launch")
+            Result.success(code)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to get exchange code")
+            Result.failure(e)
+        }
+    }
+
     private fun parseExpiresAt(json: JSONObject): Long {
         return try {
             // Try to get as long first (epoch milliseconds)

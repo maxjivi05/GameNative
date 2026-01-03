@@ -10,13 +10,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import app.gamenative.R
-import app.gamenative.data.EpicGame
 import app.gamenative.data.LibraryItem
 import app.gamenative.service.epic.EpicConstants
 import app.gamenative.service.epic.EpicService
@@ -25,15 +23,12 @@ import app.gamenative.ui.data.GameDisplayInfo
 import app.gamenative.ui.enums.AppOptionMenuType
 import app.gamenative.utils.ContainerUtils
 import com.winlator.container.ContainerData
-import com.winlator.container.ContainerManager
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.File
-import java.util.Locale
 
 // TODO: Understand how we should download the DLC and show that in the UI
 // TODO: Wait until GameManager PR has been finished and merged so we can utilise it.
@@ -103,7 +98,7 @@ class EpicAppScreen : BaseAppScreen() {
     @Composable
     override fun getGameDisplayInfo(
         context: Context,
-        libraryItem: LibraryItem
+        libraryItem: LibraryItem,
     ): GameDisplayInfo {
         Timber.tag(TAG).d("getGameDisplayInfo: appId=${libraryItem.appId}, name=${libraryItem.name}")
         // For Epic games, appId has EPIC_ prefix, strip it to get the raw Epic app name
@@ -167,7 +162,8 @@ class EpicAppScreen : BaseAppScreen() {
                     }
                 }
 
-                Timber.tag("Epic").i("""
+                Timber.tag("Epic").i(
+                    """
                     |╔═══════════════════════════════════════════════════════════════════════════════
                     |║ EPIC GAME DATABASE ENTRY
                     |╠═══════════════════════════════════════════════════════════════════════════════
@@ -223,9 +219,11 @@ class EpicAppScreen : BaseAppScreen() {
                     |║   Last Played: ${if (game.lastPlayed > 0) java.util.Date(game.lastPlayed) else "Never"}
                     |║   Total Playtime: ${game.playTime} seconds (${game.playTime / 3600.0} hours)
                     |╚═══════════════════════════════════════════════════════════════════════════════
-                """.trimMargin())
+                    """.trimMargin(),
+                )
             } else {
-                Timber.tag("Epic").w("""
+                Timber.tag("Epic").w(
+                    """
                     |╔═══════════════════════════════════════════════════════════════════════════════
                     |║ EPIC GAME NOT FOUND IN DATABASE
                     |╠═══════════════════════════════════════════════════════════════════════════════
@@ -235,7 +233,8 @@ class EpicAppScreen : BaseAppScreen() {
                     |║ The game will use fallback data from the LibraryItem until Epic library
                     |║ is refreshed. Try opening Settings > Epic Games > Sync Library.
                     |╚═══════════════════════════════════════════════════════════════════════════════
-                """.trimMargin())
+                    """.trimMargin(),
+                )
             }
             game
         }
@@ -245,7 +244,9 @@ class EpicAppScreen : BaseAppScreen() {
         // Format sizes for display
         val sizeOnDisk = if (game != null && game.isInstalled && game.installSize > 0) {
             formatBytes(game.installSize)
-        } else null
+        } else {
+            null
+        }
 
         val sizeFromStore = if (game != null) {
             when {
@@ -253,7 +254,9 @@ class EpicAppScreen : BaseAppScreen() {
                 game.downloadSize > 0 -> formatBytes(game.downloadSize)
                 else -> null
             }
-        } else null
+        } else {
+            null
+        }
 
         // Parse Epic's ISO 8601 release date string to Unix timestamp
         // GameDisplayInfo expects Unix timestamp in SECONDS, not milliseconds
@@ -276,13 +279,13 @@ class EpicAppScreen : BaseAppScreen() {
             name = game?.title ?: libraryItem.name,
             iconUrl = game?.iconUrl ?: libraryItem.iconHash,
             heroImageUrl = game?.artCover ?: game?.artSquare ?: libraryItem.iconHash,
-            gameId = libraryItem.gameId,  // Use gameId property which handles conversion
+            gameId = libraryItem.gameId, // Use gameId property which handles conversion
             appId = libraryItem.appId,
             releaseDate = releaseDateTimestamp,
             developer = game?.developer?.takeIf { it.isNotEmpty() } ?: "",
             installLocation = game?.installPath?.takeIf { it.isNotEmpty() },
             sizeOnDisk = sizeOnDisk,
-            sizeFromStore = sizeFromStore
+            sizeFromStore = sizeFromStore,
         )
         Timber.tag(TAG).d("Returning GameDisplayInfo: name=${displayInfo.name}, iconUrl=${displayInfo.iconUrl}, heroImageUrl=${displayInfo.heroImageUrl}, developer=${displayInfo.developer}, installLocation=${displayInfo.installLocation}")
         return displayInfo
@@ -388,7 +391,7 @@ class EpicAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Starting download: ${libraryItem.name}",
-                        android.widget.Toast.LENGTH_SHORT
+                        android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
 
@@ -404,7 +407,7 @@ class EpicAppScreen : BaseAppScreen() {
                         android.widget.Toast.makeText(
                             context,
                             "Failed to start download: ${result.exceptionOrNull()?.message}",
-                            android.widget.Toast.LENGTH_SHORT
+                            android.widget.Toast.LENGTH_SHORT,
                         ).show()
                     }
                 }
@@ -414,7 +417,7 @@ class EpicAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Download error: ${e.message}",
-                        android.widget.Toast.LENGTH_SHORT
+                        android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
             }
@@ -458,7 +461,7 @@ class EpicAppScreen : BaseAppScreen() {
             android.widget.Toast.makeText(
                 context,
                 "Download cancelled",
-                android.widget.Toast.LENGTH_SHORT
+                android.widget.Toast.LENGTH_SHORT,
             ).show()
         } else if (isInstalled) {
             // Show uninstall confirmation dialog
@@ -486,7 +489,7 @@ class EpicAppScreen : BaseAppScreen() {
                         android.widget.Toast.makeText(
                             context,
                             "Uninstall failed: ${result.exceptionOrNull()?.message}",
-                            android.widget.Toast.LENGTH_SHORT
+                            android.widget.Toast.LENGTH_SHORT,
                         ).show()
                     }
                 }
@@ -496,7 +499,7 @@ class EpicAppScreen : BaseAppScreen() {
                     android.widget.Toast.makeText(
                         context,
                         "Uninstall error: ${e.message}",
-                        android.widget.Toast.LENGTH_SHORT
+                        android.widget.Toast.LENGTH_SHORT,
                     ).show()
                 }
             }
@@ -558,7 +561,7 @@ class EpicAppScreen : BaseAppScreen() {
         onEditContainer: () -> Unit,
         onBack: () -> Unit,
         onClickPlay: (Boolean) -> Unit,
-        isInstalled: Boolean
+        isInstalled: Boolean,
     ): List<AppMenuOption> {
         val options = mutableListOf<AppMenuOption>()
         return options
@@ -570,16 +573,15 @@ class EpicAppScreen : BaseAppScreen() {
     @Composable
     override fun getResetContainerOption(
         context: Context,
-        libraryItem: LibraryItem
+        libraryItem: LibraryItem,
     ): AppMenuOption {
         return AppMenuOption(
             optionType = AppOptionMenuType.ResetToDefaults,
             onClick = {
                 resetContainerToDefaults(context, libraryItem)
-            }
+            },
         )
     }
-
 
     /**
      * Epic games don't need special image fetching logic like Custom Games
@@ -594,7 +596,7 @@ class EpicAppScreen : BaseAppScreen() {
         libraryItem: LibraryItem,
         onStateChanged: () -> Unit,
         onProgressChanged: (Float) -> Unit,
-        onHasPartialDownloadChanged: ((Boolean) -> Unit)?
+        onHasPartialDownloadChanged: ((Boolean) -> Unit)?,
     ): (() -> Unit)? {
         Timber.tag(TAG).d("[OBSERVE] Setting up observeGameState for appId=${libraryItem.appId}, gameId=${libraryItem.gameId}")
         val disposables = mutableListOf<() -> Unit>()
@@ -651,7 +653,8 @@ class EpicAppScreen : BaseAppScreen() {
             }
         }
         app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener)
-        disposables += { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener) }
+        disposables +=
+            { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.DownloadStatusChanged, Unit>(downloadStatusListener) }
 
         // Listen for install status changes
         val installListener: (app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged) -> Unit = { event ->
@@ -662,7 +665,8 @@ class EpicAppScreen : BaseAppScreen() {
             }
         }
         app.gamenative.PluviaApp.events.on<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener)
-        disposables += { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener) }
+        disposables +=
+            { app.gamenative.PluviaApp.events.off<app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged, Unit>(installListener) }
 
         // Return cleanup function
         return {
@@ -678,7 +682,7 @@ class EpicAppScreen : BaseAppScreen() {
         libraryItem: LibraryItem,
         onDismiss: () -> Unit,
         onEditContainer: () -> Unit,
-        onBack: () -> Unit
+        onBack: () -> Unit,
     ) {
         Timber.tag(TAG).d("AdditionalDialogs: composing for appId=${libraryItem.appId}")
         val context = LocalContext.current
@@ -737,7 +741,7 @@ class EpicAppScreen : BaseAppScreen() {
                         onClick = {
                             hideInstallDialog(libraryItem.appId)
                             performDownload(context, libraryItem) {}
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.install))
                     }
@@ -746,11 +750,11 @@ class EpicAppScreen : BaseAppScreen() {
                     TextButton(
                         onClick = {
                             hideInstallDialog(libraryItem.appId)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
-                }
+                },
             )
         }
 
@@ -774,7 +778,7 @@ class EpicAppScreen : BaseAppScreen() {
                         onClick = {
                             hideUninstallDialog(libraryItem.appId)
                             performUninstall(context, libraryItem)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.uninstall))
                     }
@@ -783,11 +787,11 @@ class EpicAppScreen : BaseAppScreen() {
                     TextButton(
                         onClick = {
                             hideUninstallDialog(libraryItem.appId)
-                        }
+                        },
                     ) {
                         Text(stringResource(R.string.cancel))
                     }
-                }
+                },
             )
         }
     }

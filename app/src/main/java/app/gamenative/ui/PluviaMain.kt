@@ -1,10 +1,9 @@
 package app.gamenative.ui
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.activity.OnBackPressedDispatcher
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -17,7 +16,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.BlendMode.Companion.Screen
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.zIndex
@@ -43,7 +41,6 @@ import app.gamenative.PluviaApp
 import app.gamenative.PrefManager
 import app.gamenative.R
 import app.gamenative.data.GameSource
-import app.gamenative.data.PostSyncInfo
 import app.gamenative.enums.AppTheme
 import app.gamenative.enums.LoginResult
 import app.gamenative.enums.PathType
@@ -81,15 +78,15 @@ import com.winlator.core.TarCompressorUtils
 import com.winlator.xenvironment.ImageFs
 import com.winlator.xenvironment.ImageFsInstaller
 import `in`.dragonbra.javasteam.protobufs.steamclient.SteammessagesClientObjects.ECloudPendingRemoteOperation
+import java.io.File
+import java.util.Date
+import java.util.EnumSet
+import kotlin.reflect.KFunction2
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import java.io.File
-import java.util.Date
-import java.util.EnumSet
-import kotlin.reflect.KFunction2
 
 @Composable
 fun PluviaMain(
@@ -180,13 +177,22 @@ fun PluviaMain(
                 }
 
                 MainViewModel.MainUiEvent.OnBackPressed -> {
-                    if (SteamService.isGameRunning){
+                    if (SteamService.isGameRunning) {
                         gameBackAction?.invoke() ?: run { navController.popBackStack() }
                     } else if (hasBack) {
                         // TODO: check if back leads to log out and present confidence modal
                         navController.popBackStack()
                     } else {
-                        // TODO: quit app?
+                        // Show exit confirmation dialog when at the root
+                        msgDialogState = MessageDialogState(
+                            visible = true,
+                            type = DialogType.EXIT_APP,
+                            title = context.getString(R.string.exit_confirmation_title),
+                            message = context.getString(R.string.exit_confirmation_message),
+                            confirmBtnText = context.getString(R.string.exit_confirmation_minimize),
+                            actionBtnText = context.getString(R.string.exit_confirmation_exit),
+                            dismissBtnText = context.getString(R.string.cancel),
+                        )
                     }
                 }
 
@@ -260,8 +266,8 @@ fun PluviaMain(
 
                                     if (navController.currentDestination?.route != PluviaScreen.Home.route) {
                                         navController.navigate(PluviaScreen.Home.route) {
-                                            popUpTo(navController.graph.startDestinationId) {
-                                                saveState = false
+                                            popUpTo(PluviaScreen.LoginUser.route) {
+                                                inclusive = true
                                             }
                                         }
                                     }
@@ -278,10 +284,13 @@ fun PluviaMain(
                                         onSuccess = viewModel::launchApp,
                                     )
                                 }
-                            }
-                            else if (PluviaApp.xEnvironment == null) {
+                            } else if (PluviaApp.xEnvironment == null) {
                                 Timber.i("Navigating to library")
-                                navController.navigate(PluviaScreen.Home.route)
+                                navController.navigate(PluviaScreen.Home.route) {
+                                    popUpTo(PluviaScreen.LoginUser.route) {
+                                        inclusive = true
+                                    }
+                                }
 
                                 // Check for update first
                                 val currentUpdateInfo = updateInfo
@@ -294,7 +303,7 @@ fun PluviaMain(
                                         message = context.getString(
                                             R.string.main_update_available_message,
                                             currentUpdateInfo.versionName,
-                                            currentUpdateInfo.releaseNotes?.let { "\n\n$it" } ?: ""
+                                            currentUpdateInfo.releaseNotes?.let { "\n\n$it" } ?: "",
                                         ),
                                         confirmBtnText = context.getString(R.string.main_update_button),
                                         dismissBtnText = context.getString(R.string.main_later_button),
@@ -397,7 +406,7 @@ fun PluviaMain(
 
     LaunchedEffect(Unit) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            if (!state.isSteamConnected && !isConnecting && !SteamService.isGameRunning) {
+            if (PrefManager.username.isNotEmpty() && !state.isSteamConnected && !isConnecting && !SteamService.isGameRunning) {
                 Timber.d("[PluviaMain]: Steam not connected - attempt")
                 isConnecting = true
                 context.startForegroundService(Intent(context, SteamService::class.java))
@@ -405,20 +414,26 @@ fun PluviaMain(
 
             // Start GOGService if user has GOG credentials
             if (app.gamenative.service.gog.GOGService.hasStoredCredentials(context) &&
-                !app.gamenative.service.gog.GOGService.isRunning) {
+                !app.gamenative.service.gog.GOGService.isRunning
+            ) {
                 Timber.d("[PluviaMain]: Starting GOGService for logged-in user")
                 app.gamenative.service.gog.GOGService.start(context)
             }
 
             // Start EpicService if user has Epic credentials
             if (app.gamenative.service.epic.EpicService.hasStoredCredentials(context) &&
-                !app.gamenative.service.epic.EpicService.isRunning) {
+                !app.gamenative.service.epic.EpicService.isRunning
+            ) {
                 Timber.d("[PluviaMain]: Starting EpicService for logged-in user")
                 app.gamenative.service.epic.EpicService.start(context)
             }
 
             if (SteamService.isLoggedIn && !SteamService.isGameRunning && state.currentScreen == PluviaScreen.LoginUser) {
-                navController.navigate(PluviaScreen.Home.route)
+                navController.navigate(PluviaScreen.Home.route) {
+                    popUpTo(PluviaScreen.LoginUser.route) {
+                        inclusive = true
+                    }
+                }
             }
         }
     }
@@ -492,7 +507,11 @@ fun PluviaMain(
                 ConnectingServersScreen(
                     onContinueOffline = {
                         isConnecting = false
-                        navController.navigate(PluviaScreen.Home.route + "?offline=true")
+                        navController.navigate(PluviaScreen.Home.route + "?offline=true") {
+                            popUpTo(PluviaScreen.LoginUser.route) {
+                                inclusive = true
+                            }
+                        }
                     },
                 )
             }
@@ -754,7 +773,7 @@ fun PluviaMain(
                             versionName = updateInfo.versionName,
                             onProgress = { progress ->
                                 viewModel.setLoadingDialogProgress(progress)
-                            }
+                            },
                         )
 
                         viewModel.setLoadingDialogVisible(false)
@@ -771,6 +790,27 @@ fun PluviaMain(
                 }
             }
             onDismissClick = {
+                setMessageDialogState(MessageDialogState(false))
+            }
+            onDismissRequest = {
+                setMessageDialogState(MessageDialogState(false))
+            }
+        }
+
+        DialogType.EXIT_APP -> {
+            onConfirmClick = {
+                // Minimize
+                setMessageDialogState(MessageDialogState(false))
+                (context as? Activity)?.moveTaskToBack(true)
+            }
+            onActionClick = {
+                // Exit
+                setMessageDialogState(MessageDialogState(false))
+                Timber.i("User requested FORCE EXIT")
+                PluviaApp.events.emit(AndroidEvent.EndProcess)
+            }
+            onDismissClick = {
+                // Cancel
                 setMessageDialogState(MessageDialogState(false))
             }
             onDismissRequest = {
@@ -889,7 +929,11 @@ fun PluviaMain(
             composable(route = PluviaScreen.LoginUser.route) {
                 UserLoginScreen(
                     onContinueOffline = {
-                        navController.navigate(PluviaScreen.Home.route + "?offline=true")
+                        navController.navigate(PluviaScreen.Home.route + "?offline=true") {
+                            popUpTo(PluviaScreen.LoginUser.route) {
+                                inclusive = true
+                            }
+                        }
                     },
                 )
             }
@@ -923,7 +967,15 @@ fun PluviaMain(
                         )
                     },
                     onClickExit = {
-                        PluviaApp.events.emit(AndroidEvent.EndProcess)
+                        msgDialogState = MessageDialogState(
+                            visible = true,
+                            type = DialogType.EXIT_APP,
+                            title = context.getString(R.string.exit_confirmation_title),
+                            message = context.getString(R.string.exit_confirmation_message),
+                            confirmBtnText = context.getString(R.string.exit_confirmation_minimize),
+                            actionBtnText = context.getString(R.string.exit_confirmation_exit),
+                            dismissBtnText = context.getString(R.string.cancel),
+                        )
                     },
                     onChat = {
                         navController.navigate(PluviaScreen.Chat.route(it))
@@ -954,7 +1006,7 @@ fun PluviaMain(
                         CoroutineScope(Dispatchers.Main).launch {
                             val currentRoute = navController.currentBackStackEntry
                                 ?.destination
-                                ?.route          // ← this is the screen’s route string
+                                ?.route // ← this is the screen’s route string
 
                             if (currentRoute == PluviaScreen.XServer.route) {
                                 navController.popBackStack()
@@ -1037,7 +1089,9 @@ fun preLaunchApp(
                 context = context,
             ).await()
         }
-        if (container.containerVariant.equals(Container.GLIBC) && !SteamService.isFileInstallable(context, "imagefs_patches_gamenative.tzst")) {
+        if (container.containerVariant.equals(Container.GLIBC) &&
+            !SteamService.isFileInstallable(context, "imagefs_patches_gamenative.tzst")
+        ) {
             setLoadingMessage("Downloading Wine")
             SteamService.downloadImageFsPatches(
                 onDownloadProgress = { setLoadingProgress(it / 1.0f) },
@@ -1045,21 +1099,25 @@ fun preLaunchApp(
                 context = context,
             ).await()
         } else {
-            if (container.wineVersion.contains("proton-9.0-arm64ec") && !SteamService.isFileInstallable(context, "proton-9.0-arm64ec.txz")) {
+            if (container.wineVersion.contains("proton-9.0-arm64ec") &&
+                !SteamService.isFileInstallable(context, "proton-9.0-arm64ec.txz")
+            ) {
                 setLoadingMessage("Downloading arm64ec Proton")
                 SteamService.downloadFile(
                     onDownloadProgress = { setLoadingProgress(it / 1.0f) },
                     this,
                     context = context,
-                    "proton-9.0-arm64ec.txz"
+                    "proton-9.0-arm64ec.txz",
                 ).await()
-            } else if (container.wineVersion.contains("proton-9.0-x86_64") && !SteamService.isFileInstallable(context, "proton-9.0-x86_64.txz")) {
+            } else if (container.wineVersion.contains("proton-9.0-x86_64") &&
+                !SteamService.isFileInstallable(context, "proton-9.0-x86_64.txz")
+            ) {
                 setLoadingMessage("Downloading x86_64 Proton")
                 SteamService.downloadFile(
                     onDownloadProgress = { setLoadingProgress(it / 1.0f) },
                     this,
                     context = context,
-                    "proton-9.0-x86_64.txz"
+                    "proton-9.0-x86_64.txz",
                 ).await()
             }
             if (container.wineVersion.contains("proton-9.0-x86_64") || container.wineVersion.contains("proton-9.0-arm64ec")) {
@@ -1080,13 +1138,16 @@ fun preLaunchApp(
                 }
             }
         }
-        if (!container.isUseLegacyDRM && !container.isLaunchRealSteam && !SteamService.isFileInstallable(context, "experimental-drm.tzst")) {
+        if (!container.isUseLegacyDRM &&
+            !container.isLaunchRealSteam &&
+            !SteamService.isFileInstallable(context, "experimental-drm.tzst")
+        ) {
             setLoadingMessage("Downloading extras")
             SteamService.downloadFile(
                 onDownloadProgress = { setLoadingProgress(it / 1.0f) },
                 this,
                 context = context,
-                "experimental-drm.tzst"
+                "experimental-drm.tzst",
             ).await()
         }
         if (container.isLaunchRealSteam && !SteamService.isFileInstallable(context, "steam.tzst")) {
@@ -1097,10 +1158,11 @@ fun preLaunchApp(
                 context = context,
             ).await()
         }
-        val loadingMessage = if (container.containerVariant.equals(Container.GLIBC))
+        val loadingMessage = if (container.containerVariant.equals(Container.GLIBC)) {
             context.getString(R.string.main_installing_glibc)
-        else
+        } else {
             context.getString(R.string.main_installing_bionic)
+        }
         setLoadingMessage(loadingMessage)
         val imageFsInstallSuccess =
             ImageFsInstaller.installIfNeededFuture(context, context.assets, container) { progress ->
@@ -1151,7 +1213,7 @@ fun preLaunchApp(
             val syncSuccess = app.gamenative.service.gog.GOGService.syncCloudSaves(
                 context = context,
                 appId = appId,
-                preferredAction = "download"
+                preferredAction = "download",
             )
 
             if (!syncSuccess) {
@@ -1200,7 +1262,7 @@ fun preLaunchApp(
                         message = context.getString(
                             R.string.main_save_conflict_message,
                             Date(postSyncInfo.localTimestamp).toString(),
-                            Date(postSyncInfo.remoteTimestamp).toString()
+                            Date(postSyncInfo.remoteTimestamp).toString(),
                         ),
                         dismissBtnText = context.getString(R.string.main_keep_local),
                         confirmBtnText = context.getString(R.string.main_keep_remote),
@@ -1285,7 +1347,7 @@ fun preLaunchApp(
                                         R.string.main_upload_in_progress_message,
                                         gameName,
                                         pro.machineName,
-                                        dateStr
+                                        dateStr,
                                     ),
                                     dismissBtnText = context.getString(R.string.ok),
                                 ),
@@ -1302,7 +1364,7 @@ fun preLaunchApp(
                                         R.string.main_pending_upload_message,
                                         gameName,
                                         pro.machineName,
-                                        dateStr
+                                        dateStr,
                                     ),
                                     confirmBtnText = context.getString(R.string.main_play_anyway),
                                     dismissBtnText = context.getString(R.string.cancel),
@@ -1320,7 +1382,7 @@ fun preLaunchApp(
                                         R.string.main_app_running_other_device,
                                         pro.machineName,
                                         gameName,
-                                        dateStr
+                                        dateStr,
                                     ),
                                     confirmBtnText = context.getString(R.string.main_play_anyway),
                                     dismissBtnText = context.getString(R.string.cancel),

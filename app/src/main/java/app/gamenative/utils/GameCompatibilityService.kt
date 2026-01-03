@@ -1,5 +1,6 @@
 package app.gamenative.utils
 
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -9,7 +10,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import timber.log.Timber
-import java.util.concurrent.TimeUnit
 
 /**
  * Service for fetching game compatibility information from GameNative API.
@@ -28,7 +28,7 @@ object GameCompatibilityService {
      */
     data class GameCompatibilityRequest(
         val gameNames: List<String>,
-        val gpuName: String
+        val gpuName: String,
     )
 
     /**
@@ -40,7 +40,7 @@ object GameCompatibilityService {
         val gpuPlayableCount: Int,
         val avgRating: Float,
         val hasBeenTried: Boolean,
-        val isNotWorking: Boolean
+        val isNotWorking: Boolean,
     )
 
     /**
@@ -49,7 +49,7 @@ object GameCompatibilityService {
      */
     suspend fun fetchCompatibility(
         gameNames: List<String>,
-        gpuName: String
+        gpuName: String,
     ): Map<String, GameCompatibilityResponse>? = withContext(Dispatchers.IO) {
         if (gameNames.isEmpty()) {
             return@withContext emptyMap()
@@ -95,7 +95,7 @@ object GameCompatibilityService {
                         gpuPlayableCount = gameData.optInt("gpuPlayableCount", 0),
                         avgRating = gameData.optDouble("avgRating", 0.0).toFloat(),
                         hasBeenTried = gameData.optBoolean("hasBeenTried", false),
-                        isNotWorking = gameData.optBoolean("isNotWorking", false)
+                        isNotWorking = gameData.optBoolean("isNotWorking", false),
                     )
 
                     result[gameName] = compatibilityResponse
@@ -116,4 +116,3 @@ object GameCompatibilityService {
         }
     }
 }
-

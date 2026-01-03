@@ -3,7 +3,6 @@ package app.gamenative.service.epic
 import android.content.Context
 import app.gamenative.data.DownloadInfo
 import app.gamenative.data.EpicGame
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -18,7 +17,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 import timber.log.Timber
 
 /**
@@ -99,8 +97,6 @@ class EpicDownloadManager @Inject constructor(
             val chunks = chunkDataList.elements
             val files = fileManifestList.elements
             val chunkDir = manifest.getChunkDir()
-
-
 
             val totalSize = files.sumOf { it.fileSize }
             val chunkCount = chunks.size
@@ -216,7 +212,6 @@ class EpicDownloadManager @Inject constructor(
             val chunkPath = chunk.getPath(chunkDir)
 
             Timber.tag("EpicManifest").i("Chunk Dir: $chunkPath")
-
 
             // Try each CDN base URL until one succeeds
             var lastException: Exception? = null

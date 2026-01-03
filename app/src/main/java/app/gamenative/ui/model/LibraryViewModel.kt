@@ -1,48 +1,47 @@
 package app.gamenative.ui.model
 
+import android.content.Context
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import app.gamenative.PrefManager
 import app.gamenative.PluviaApp
+import app.gamenative.PrefManager
+import app.gamenative.data.EpicGame
+import app.gamenative.data.GOGGame
+import app.gamenative.data.GameCompatibilityStatus
+import app.gamenative.data.GameSource
 import app.gamenative.data.LibraryItem
 import app.gamenative.data.SteamApp
-import app.gamenative.data.GOGGame
-import app.gamenative.data.EpicGame
-import app.gamenative.data.GameSource
-import app.gamenative.db.dao.SteamAppDao
-import app.gamenative.db.dao.GOGGameDao
 import app.gamenative.db.dao.EpicGameDao
+import app.gamenative.db.dao.GOGGameDao
+import app.gamenative.db.dao.SteamAppDao
+import app.gamenative.events.AndroidEvent
 import app.gamenative.service.DownloadService
 import app.gamenative.service.SteamService
 import app.gamenative.ui.data.LibraryState
 import app.gamenative.ui.enums.AppFilter
-import app.gamenative.events.AndroidEvent
 import app.gamenative.utils.CustomGameScanner
 import app.gamenative.utils.GameCompatibilityCache
 import app.gamenative.utils.GameCompatibilityService
-import app.gamenative.data.GameCompatibilityStatus
 import com.winlator.core.GPUInformation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import android.content.Context
 import java.io.File
 import java.util.EnumSet
 import javax.inject.Inject
+import kotlin.math.max
+import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import timber.log.Timber
-import kotlin.math.max
-import kotlin.math.min
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
@@ -69,8 +68,8 @@ class LibraryViewModel @Inject constructor(
     }
 
     // How many items loaded on one page of results
-    private var paginationCurrentPage: Int = 0;
-    private var lastPageInCurrentFilter: Int = 0;
+    private var paginationCurrentPage: Int = 0
+    private var lastPageInCurrentFilter: Int = 0
 
     // Complete and unfiltered app list
     private var appList: List<SteamApp> = emptyList()
@@ -283,7 +282,7 @@ class LibraryViewModel @Inject constructor(
                         } ?: emptyList()
                     }.let { owners ->
                         if (owners.isEmpty()) {
-                            true                       // no owner info ⇒ don’t filter the item out
+                            true // no owner info ⇒ don’t filter the item out
                         } else {
                             owners.any { item.ownerAccountId.contains(it) }
                         }
@@ -316,7 +315,7 @@ class LibraryViewModel @Inject constructor(
                 .sortedWith(
                     compareByDescending<SteamApp> {
                         downloadDirectorySet.contains(SteamService.getAppDirName(it))
-                    }.thenBy { it.name.lowercase() }
+                    }.thenBy { it.name.lowercase() },
                 )
                 .toList()
 
@@ -340,7 +339,7 @@ class LibraryViewModel @Inject constructor(
             // Only include custom games if GAME filter is selected
             val customGameItems = if (currentState.appInfoSortType.contains(AppFilter.GAME)) {
                 CustomGameScanner.scanAsLibraryItems(
-                    query = currentState.searchQuery
+                    query = currentState.searchQuery,
                 )
             } else {
                 emptyList()
@@ -452,7 +451,7 @@ class LibraryViewModel @Inject constructor(
                 // Secondary sort: alphabetically by name (case-insensitive)
                 compareBy<LibraryEntry> { entry ->
                     if (entry.isInstalled) 0 else 1
-                }.thenBy { it.item.name.lowercase() }
+                }.thenBy { it.item.name.lowercase() },
             ).also { sortedList ->
                 if (sortedList.isNotEmpty()) {
                     val installedCount = sortedList.count { it.isInstalled }
@@ -472,7 +471,7 @@ class LibraryViewModel @Inject constructor(
             val endIndex = min((paginationPage + 1) * pageSize, totalFound)
             val pagedList = combined.take(endIndex)
 
-            Timber.tag("LibraryViewModel").d("Filtered list size (with Custom Games): ${totalFound}")
+            Timber.tag("LibraryViewModel").d("Filtered list size (with Custom Games): $totalFound")
 
             if (isFirstLoad) {
                 isFirstLoad = false

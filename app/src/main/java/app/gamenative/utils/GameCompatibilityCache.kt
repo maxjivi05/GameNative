@@ -44,4 +44,3 @@ object GameCompatibilityCache {
      */
     fun size(): Int = cache.size
 }
-

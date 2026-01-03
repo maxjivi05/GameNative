@@ -10,7 +10,6 @@ import app.gamenative.enums.PathType
 import app.gamenative.enums.SaveLocation
 import app.gamenative.enums.SyncResult
 import app.gamenative.service.SteamService.Companion.FileChanges
-import app.gamenative.service.SteamService.Companion.getAppDirPath
 import app.gamenative.utils.FileUtils
 import app.gamenative.utils.SteamUtils
 import `in`.dragonbra.javasteam.enums.EResult
@@ -21,6 +20,7 @@ import `in`.dragonbra.javasteam.util.crypto.CryptoHelper
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
+import java.net.SocketTimeoutException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -41,7 +41,6 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import timber.log.Timber
-import java.net.SocketTimeoutException
 
 /**
  * [Steam Auto Cloud](https://partner.steamgames.com/doc/features/cloud#steam_auto-cloud)
@@ -352,9 +351,9 @@ object SteamAutoCloud {
                                 bytesDownloaded += fileDownloadInfo.fileSize
                             }
                         } catch (e: FileSystemException) {
-                            Timber.w("Could not download $actualFilePath: %s", e.message);
+                            Timber.w("Could not download $actualFilePath: %s", e.message)
                         } catch (e: SocketTimeoutException) {
-                            Timber.w("Could not download $actualFilePath: %s", e.message);
+                            Timber.w("Could not download $actualFilePath: %s", e.message)
                         }
 
                         response.close()
@@ -460,7 +459,9 @@ object SteamAutoCloud {
                             Timber.i("Read $bytesRead byte(s) for block")
 
                             val mediaType = if (blockRequest.requestHeaders.any { it.name.equals("Content-Type", ignoreCase = true) }) {
-                                blockRequest.requestHeaders.first { it.name.equals("Content-Type", ignoreCase = true) }.value.toMediaTypeOrNull()
+                                blockRequest.requestHeaders.first {
+                                    it.name.equals("Content-Type", ignoreCase = true)
+                                }.value.toMediaTypeOrNull()
                             } else {
                                 "application/octet-stream".toMediaTypeOrNull()
                             }
@@ -562,7 +563,8 @@ object SteamAutoCloud {
         var microsecUploadFiles = 0L
 
         microsecTotal = measureTime {
-            val localAppChangeNumber = overrideLocalChangeNumber ?: steamInstance.changeNumbersDao.getByAppId(appInfo.id)?.changeNumber ?: -1
+            val localAppChangeNumber =
+                overrideLocalChangeNumber ?: steamInstance.changeNumbersDao.getByAppId(appInfo.id)?.changeNumber ?: -1
 
             val changeNumber = if (localAppChangeNumber >= 0) localAppChangeNumber else 0
             val appFileListChange = steamCloud.getAppFileListChange(appInfo.id, changeNumber).await()

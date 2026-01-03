@@ -32,7 +32,6 @@ fun main(args: Array<String>) {
 
         // Output as JSON
         println(summary.toString(2))
-
     } catch (e: Exception) {
         println("Error parsing manifest: ${e.message}")
         e.printStackTrace()

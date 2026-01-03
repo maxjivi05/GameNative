@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
@@ -598,7 +597,7 @@ class EpicManager @Inject constructor(
         return withContext(Dispatchers.IO) {
             try {
                 Timber.tag("Epic").i("Getting DLC for appId: $appId")
-                val dlcTitles = epicGameDao.getAllDlcTitles().firstOrNull() ?:emptyList()
+                val dlcTitles = epicGameDao.getAllDlcTitles().firstOrNull() ?: emptyList()
                 if (dlcTitles.isNotEmpty()) {
                     for (title in dlcTitles) {
                         Timber.tag("Epic").i("ALL DLCs: ${title.title} \nBase Game: ${title.baseGameAppName}")
@@ -644,7 +643,6 @@ class EpicManager @Inject constructor(
         }
     }
 
-
     /**
      * Start background sync (called after login)
      */
@@ -661,17 +659,17 @@ class EpicManager @Inject constructor(
             Timber.tag("Epic").i("Starting Epic library background sync...")
             Result.success(Unit)
 
-             val result = refreshLibrary(context)
+            val result = refreshLibrary(context)
 
-             if (result.isSuccess) {
-                 val count = result.getOrNull() ?: 0
-                 Timber.tag("Epic").i("Background sync completed: $count games synced")
-                 Result.success(Unit)
-             } else {
-                 val error = result.exceptionOrNull()
-                 Timber.e(error, "Background sync failed: ${error?.message}")
-                 Result.failure(error ?: Exception("Background sync failed"))
-             }
+            if (result.isSuccess) {
+                val count = result.getOrNull() ?: 0
+                Timber.tag("Epic").i("Background sync completed: $count games synced")
+                Result.success(Unit)
+            } else {
+                val error = result.exceptionOrNull()
+                Timber.e(error, "Background sync failed: ${error?.message}")
+                Result.failure(error ?: Exception("Background sync failed"))
+            }
         } catch (e: Exception) {
             Timber.e(e, "Failed to sync Epic library in background")
             Result.failure(e)
@@ -680,7 +678,7 @@ class EpicManager @Inject constructor(
 
     data class ManifestResult(
         val manifestBytes: ByteArray,
-        val cdnUrls: List<CdnUrl>
+        val cdnUrls: List<CdnUrl>,
     )
 
     // authQueryParams:  e.g., "?f_token=..." or "?ak_token=..."
@@ -688,7 +686,7 @@ class EpicManager @Inject constructor(
     data class CdnUrl(
         val baseUrl: String,
         val authQueryParams: String,
-        val cloudDir: String = ""  // Full build path for chunk downloads
+        val cloudDir: String = "", // Full build path for chunk downloads
     )
 
     /**
@@ -700,7 +698,7 @@ class EpicManager @Inject constructor(
         context: Context,
         namespace: String,
         catalogItemId: String,
-        appName: String
+        appName: String,
     ): Result<ManifestResult> = withContext(Dispatchers.IO) {
         try {
             // Get credentials
@@ -716,8 +714,8 @@ class EpicManager @Inject constructor(
 
             // Fetch manifest URL from Epic API
             val manifestUrl = "${EpicConstants.EPIC_LAUNCHER_API_URL}/launcher/api/public/assets/v2/platform" +
-                    "/Windows/namespace/$namespace/catalogItem/$catalogItemId/app" +
-                    "/$appName/label/Live"
+                "/Windows/namespace/$namespace/catalogItem/$catalogItemId/app" +
+                "/$appName/label/Live"
 
             Timber.tag("Epic").d("Fetching manifest metadata from: $manifestUrl")
 

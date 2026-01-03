@@ -9,10 +9,10 @@ import app.gamenative.data.EpicCredentials
 import app.gamenative.data.EpicGame
 import app.gamenative.data.LaunchInfo
 import app.gamenative.data.LibraryItem
-import app.gamenative.utils.MarkerUtils
 import app.gamenative.enums.Marker
-import app.gamenative.utils.ContainerUtils
 import app.gamenative.service.NotificationHelper
+import app.gamenative.utils.ContainerUtils
+import app.gamenative.utils.MarkerUtils
 import dagger.hilt.android.AndroidEntryPoint
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
@@ -31,12 +31,12 @@ import timber.log.Timber
  * while delegating all operations to the appropriate managers.
  */
 
- /**
-  * TODO: Test Pausing and Cancelling Downloads
-  * TODO: DLC Support
-  * TODO: Clean up all the code in the Epic files
-  * TODO: Ensure games install over multiple manifest types
-  * TODO: Remove all the Python code and put in the basic information regarding Cloud Saves.
+/**
+ * TODO: Test Pausing and Cancelling Downloads
+ * TODO: DLC Support
+ * TODO: Clean up all the code in the Epic files
+ * TODO: Ensure games install over multiple manifest types
+ * TODO: Remove all the Python code and put in the basic information regarding Cloud Saves.
  */
 @AndroidEntryPoint
 class EpicService : Service() {
@@ -73,7 +73,6 @@ class EpicService : Service() {
             // No initialization needed - EpicDownloadManager uses native Kotlin implementation
             return true
         }
-
 
         // ==========================================================================
         // AUTHENTICATION - Delegate to EpicAuthManager
@@ -164,12 +163,14 @@ class EpicService : Service() {
 
                 // Delete container (must run on Main thread)
                 withContext(Dispatchers.Main) {
-                    ContainerUtils.deleteContainer(context, game.id)
+                    val containerId = "EPIC_${game.appName}"
+                    ContainerUtils.deleteContainer(context, containerId)
+                    Timber.i("Deleted container for Epic app ${game.appName}")
                 }
 
                 // Trigger library refresh event
                 app.gamenative.PluviaApp.events.emitJava(
-                    app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged("EPIC_${game.appName}")
+                    app.gamenative.events.AndroidEvent.LibraryInstallStatusChanged("EPIC_${game.appName}"),
                 )
 
                 Timber.tag("Epic").i("Game uninstalled: $appName")
@@ -320,8 +321,34 @@ class EpicService : Service() {
 
             Timber.tag("Epic").i("Launching Epic game with exe: $winePath")
 
+            // Fetch credentials and exchange code for launch arguments
+            var launchArgs = ""
+            val credentialsResult = runBlocking { EpicAuthManager.getStoredCredentials(context) }
+            val credentials = credentialsResult.getOrNull()
+
+            if (credentials != null) {
+                try {
+                    val codeResult = runBlocking { EpicAuthClient.getExchangeCode(credentials.accessToken) }
+                    val exchangeCode = codeResult.getOrNull()
+
+                    if (exchangeCode != null) {
+                        launchArgs = " -AUTH_LOGIN=unused -AUTH_PASSWORD=$exchangeCode -AUTH_TYPE=exchangecode " +
+                            "-epicapp=${game.appName} -epicenv=Prod -EpicPortal " +
+                            "-epicusername=\"${credentials.displayName}\" -epicuserid=${credentials.accountId} " +
+                            "-epiclocale=en-US"
+                        Timber.tag("Epic").i("Generated Epic launch arguments with exchange code")
+                    } else {
+                        Timber.tag("Epic").w("Failed to get exchange code, game may fail to launch or require login")
+                    }
+                } catch (e: Exception) {
+                    Timber.tag("Epic").e(e, "Error generating launch arguments")
+                }
+            } else {
+                Timber.tag("Epic").w("No stored credentials, launching without Epic arguments")
+            }
+
             // Build Wine command with proper escaping
-            return "\"$winePath\""
+            return "\"$winePath\"$launchArgs"
         }
 
         suspend fun refreshLibrary(context: Context): Result<Int> {
@@ -451,15 +478,17 @@ class EpicService : Service() {
 
         // Initialize notification helper for foreground service
         notificationHelper = NotificationHelper(applicationContext)
+        val notification = notificationHelper.createForegroundNotification("Epic Games Service running...")
+        startForeground(3, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Timber.tag("Epic").i("[EpicService] onStartCommand() called")
 
-        // Start as foreground service
-        val notification = notificationHelper.createForegroundNotification("Epic Games Service running...")
-        startForeground(3, notification) // Use different ID than Steam (1) and GOG (2)
-        Timber.tag("Epic").i("[EpicService] Started as foreground service")
+        // Ensure foreground state is maintained
+        val notification = notificationHelper.createForegroundNotification("Epic Games Service active")
+        startForeground(3, notification)
+        Timber.tag("Epic").i("[EpicService] Foreground state ensured")
 
         // Start background library sync automatically when service starts
         backgroundSyncJob = scope.launch {

@@ -972,5 +972,11 @@
     <string name="gog_logout_success">Logged out from GOG successfully</string>
     <string name="gog_logout_failed">Failed to logout: %s</string>
     <string name="gog_logout_in_progress">Logging out from GOG…</string>
+
+    <!-- Exit Confirmation -->
+    <string name="exit_confirmation_title">Exit GameNative?</string>
+    <string name="exit_confirmation_message">Would you like to minimize the app or exit completely?</string>
+    <string name="exit_confirmation_minimize">Minimize</string>
+    <string name="exit_confirmation_exit">Exit</string>
 </resources>
 

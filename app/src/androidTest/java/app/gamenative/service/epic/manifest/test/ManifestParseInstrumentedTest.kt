@@ -5,8 +5,6 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.gamenative.service.epic.manifest.ManifestTestSerializer
 import app.gamenative.service.epic.manifest.ManifestUtils
-import java.io.File
-import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith

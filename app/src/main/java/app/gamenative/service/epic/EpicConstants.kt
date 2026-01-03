@@ -12,7 +12,7 @@ import timber.log.Timber
  * GraphQL endpoints. All game operations are managed through the Legendary CLI.
  */
 object EpicConstants {
-    //! OAuth Configuration - Using Legendary's official credentials (Do not worry, these are hard-coded and not sensitive.)
+    // ! OAuth Configuration - Using Legendary's official credentials (Do not worry, these are hard-coded and not sensitive.)
     const val EPIC_CLIENT_ID = "34a02cf8f4414e29b15921876da36f9a"
     const val EPIC_CLIENT_SECRET = "daafbccc737745039dffe53d94fc76cf"
 
@@ -30,16 +30,18 @@ object EpicConstants {
     // This is the standard Epic Games OAuth login flow
     const val EPIC_AUTH_LOGIN_URL =
         "$EPIC_AUTH_BASE_URL/id/login" +
-        "?redirectUrl=$EPIC_REDIRECT_URI" +
-        "%3FclientId%3D$EPIC_CLIENT_ID" +
-        "%26responseType%3Dcode"
+            "?redirectUrl=$EPIC_REDIRECT_URI" +
+            "%3FclientId%3D$EPIC_CLIENT_ID" +
+            "%26responseType%3Dcode"
 
     // Epic GraphQL API endpoints
     const val EPIC_GRAPHQL_URL = "https://launcher.store.epicgames.com/graphql"
     const val EPIC_STORE_API_URL = "https://store-content.ak.epicgames.com/api"
     const val EPIC_LIBRARY_API_URL = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items"
+
     // Epic CDN for game assets
     const val EPIC_CATALOG_API_URL = "https://catalog-public-service-prod06.ol.epicgames.com/catalog/api"
+
     // Epic Launcher API for manifests
     const val EPIC_LAUNCHER_API_URL = "https://launcher-public-service-prod06.ol.epicgames.com"
 

@@ -30,5 +30,3 @@ suspend fun fetchKofiSupporters(supabase: SupabaseClient): List<KofiSupporter> {
         emptyList()
     }
 }
-
-

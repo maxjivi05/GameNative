@@ -1,10 +1,9 @@
 package app.gamenative.service.epic.manifest.test
 
-import app.gamenative.service.epic.manifest.EpicManifest
 import app.gamenative.service.epic.manifest.ManifestTestSerializer
 import app.gamenative.service.epic.manifest.ManifestUtils
-import org.json.JSONObject
 import java.io.File
+import org.json.JSONObject
 
 /**
  * Test utility to compare Kotlin manifest parsing with Python implementation
@@ -37,7 +36,7 @@ object ManifestComparisonTest {
             "python3",
             pythonScript.absolutePath,
             manifestFile.absolutePath,
-            outputFormat
+            outputFormat,
         ).redirectErrorStream(true)
             .start()
 
@@ -80,7 +79,7 @@ object ManifestComparisonTest {
     private fun compareJsonObjects(
         obj1: JSONObject,
         obj2: JSONObject,
-        path: String = "root"
+        path: String = "root",
     ): ComparisonResult {
         val differences = mutableListOf<String>()
 
@@ -135,7 +134,7 @@ object ManifestComparisonTest {
             kotlinOutput = obj1.toString(2),
             pythonOutput = obj2.toString(2),
             matches = differences.isEmpty(),
-            differences = differences
+            differences = differences,
         )
     }
 
@@ -143,14 +142,14 @@ object ManifestComparisonTest {
      * Run a comprehensive test suite
      */
     fun runTestSuite(manifestFiles: List<File>) {
-        println("=" .repeat(80))
+        println("=".repeat(80))
         println("MANIFEST COMPARISON TEST SUITE")
-        println("=" .repeat(80))
+        println("=".repeat(80))
         println()
 
         val results = manifestFiles.mapIndexed { index, file ->
             println("Test ${index + 1}/${manifestFiles.size}: ${file.name}")
-            println("-" .repeat(80))
+            println("-".repeat(80))
 
             try {
                 val result = compareImplementations(file, summaryOnly = true)
@@ -175,7 +174,7 @@ object ManifestComparisonTest {
                     kotlinOutput = "",
                     pythonOutput = "",
                     matches = false,
-                    differences = listOf("Exception: ${e.message}")
+                    differences = listOf("Exception: ${e.message}"),
                 )
             } finally {
                 println()
@@ -183,9 +182,9 @@ object ManifestComparisonTest {
         }
 
         // Summary
-        println("=" .repeat(80))
+        println("=".repeat(80))
         println("SUMMARY")
-        println("=" .repeat(80))
+        println("=".repeat(80))
         val passed = results.count { it.matches }
         val failed = results.count { !it.matches }
         println("Total: ${manifestFiles.size}")
@@ -202,7 +201,7 @@ data class ComparisonResult(
     val kotlinOutput: String,
     val pythonOutput: String,
     val matches: Boolean,
-    val differences: List<String>
+    val differences: List<String>,
 )
 
 /**
@@ -212,7 +211,7 @@ fun main(args: Array<String>) {
     if (args.isEmpty()) {
         val defaultManifests = listOf(
             File("app/src/androidTest/assets/test-manifest.json"),
-            File("app/src/androidTest/assets/test-v3-manifest.json")
+            File("app/src/androidTest/assets/test-v3-manifest.json"),
         ).filter { it.exists() && it.isFile }
 
         if (defaultManifests.isEmpty()) {

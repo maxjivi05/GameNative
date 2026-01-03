@@ -13,12 +13,26 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import app.gamenative.R
 import app.gamenative.service.epic.EpicConstants
 import app.gamenative.ui.theme.PluviaTheme
+
+private fun extractCodeFromInput(input: String): String {
+    val trimmed = input.trim()
+    // Check if it's a URL with code parameter
+    if (trimmed.startsWith("http")) {
+        val codeMatch = Regex("[?&]code=([^&]+)").find(trimmed)
+        return codeMatch?.groupValues?.get(1) ?: ""
+    }
+    // Check if it's a URL with authorizationCode parameter (Epic specific)
+    if (trimmed.contains("authorizationCode=")) {
+        val codeMatch = Regex("[?&]authorizationCode=([^&]+)").find(trimmed)
+        return codeMatch?.groupValues?.get(1) ?: ""
+    }
+    // Otherwise assume it's already the code
+    return trimmed
+}
 
 /**
  * Epic Games Login Dialog
@@ -52,24 +66,24 @@ fun EpicLoginDialog(
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // Instructions
                 Text(
                     text = "Sign in with your Epic Games account:",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
 
                 Text(
                     text = "1. Tap 'Open Epic Login' and sign in\n2. After login, you'll see 'redirectUrl' in the browser\n3. Copy the 'authorizationCode' value from the URL\n4. Paste it below",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 Text(
                     text = "Example URL:\nhttps://www.epicgames.com/id/api/redirect?clientId=...&authorizationCode=YOUR_CODE_HERE",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                 )
 
                 // Open browser button
@@ -82,17 +96,17 @@ fun EpicLoginDialog(
                             Toast.makeText(
                                 context,
                                 "Could not open browser",
-                                Toast.LENGTH_SHORT
+                                Toast.LENGTH_SHORT,
                             ).show()
                         }
                     },
                     enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     Icon(
                         imageVector = Icons.Default.OpenInBrowser,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Open Epic Login")
@@ -104,7 +118,7 @@ fun EpicLoginDialog(
                 Text(
                     text = "Paste your authorization code below:",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
                 OutlinedTextField(
@@ -115,7 +129,7 @@ fun EpicLoginDialog(
                     enabled = !isLoading,
                     singleLine = false,
                     maxLines = 4,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 // Error message
@@ -123,7 +137,7 @@ fun EpicLoginDialog(
                     Text(
                         text = errorMessage,
                         color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
                     )
                 }
 
@@ -131,14 +145,14 @@ fun EpicLoginDialog(
                 if (isLoading) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
+                        horizontalArrangement = Arrangement.Center,
                     ) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = "Authenticating...",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
@@ -146,8 +160,13 @@ fun EpicLoginDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onAuthCodeClick(authCode) },
-                enabled = !isLoading && authCode.isNotBlank()
+                onClick = {
+                    val extractedCode = extractCodeFromInput(authCode)
+                    if (extractedCode.isNotEmpty()) {
+                        onAuthCodeClick(extractedCode)
+                    }
+                },
+                enabled = !isLoading && authCode.isNotBlank(),
             ) {
                 Text("Sign In")
             }
@@ -155,11 +174,11 @@ fun EpicLoginDialog(
         dismissButton = {
             TextButton(
                 onClick = onDismissRequest,
-                enabled = !isLoading
+                enabled = !isLoading,
             ) {
                 Text("Cancel")
             }
-        }
+        },
     )
 }
 
@@ -172,7 +191,7 @@ private fun Preview_EpicLoginDialog() {
             onDismissRequest = {},
             onAuthCodeClick = {},
             isLoading = false,
-            errorMessage = null
+            errorMessage = null,
         )
     }
 }
@@ -186,7 +205,7 @@ private fun Preview_EpicLoginDialogWithError() {
             onDismissRequest = {},
             onAuthCodeClick = {},
             isLoading = false,
-            errorMessage = "Invalid authorization code. Please try again."
+            errorMessage = "Invalid authorization code. Please try again.",
         )
     }
 }
@@ -200,7 +219,7 @@ private fun Preview_EpicLoginDialogLoading() {
             onDismissRequest = {},
             onAuthCodeClick = {},
             isLoading = true,
-            errorMessage = null
+            errorMessage = null,
         )
     }
 }

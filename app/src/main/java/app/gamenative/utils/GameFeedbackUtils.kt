@@ -4,10 +4,7 @@ import android.content.Context
 import android.os.Build
 import app.gamenative.BuildConfig
 import app.gamenative.service.SteamService
-import com.winlator.container.Container
-import com.winlator.core.FileUtils
 import com.winlator.core.GPUInformation
-import com.winlator.xenvironment.ImageFs
 import io.github.jan.supabase.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
@@ -18,13 +15,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
-import org.json.JSONObject
-
 import timber.log.Timber
-import java.io.File
 
 object GameFeedbackUtils {
-
 
     @Serializable
     data class GameRunInsert(
@@ -38,7 +31,6 @@ object GameFeedbackUtils {
         @SerialName("avg_fps") val avgFps: Float? = null,
         @SerialName("session_length_sec") val sessionLengthSec: Int? = null,
     )
-
 
     /**
      * Submits game feedback to Supabase
@@ -76,7 +68,7 @@ object GameFeedbackUtils {
             } catch (e: Exception) {
                 Timber.e(e, "GameFeedbackUtils: Failed to get GPU info: ${e.message}")
                 e.printStackTrace()
-                "Unknown GPU"  // Provide a default value instead of null
+                "Unknown GPU" // Provide a default value instead of null
             }
 
             // Get SOC identifier
@@ -108,7 +100,9 @@ object GameFeedbackUtils {
                     Timber.w("GameFeedbackUtils: Failed to parse avg_fps: $avgFpsStr")
                     null
                 }
-            } else null
+            } else {
+                null
+            }
             val sessionLengthSec = if (sessionLengthSecStr.isNotEmpty()) {
                 try {
                     sessionLengthSecStr.toInt()
@@ -116,7 +110,9 @@ object GameFeedbackUtils {
                     Timber.w("GameFeedbackUtils: Failed to parse session_length_sec: $sessionLengthSecStr")
                     null
                 }
-            } else null
+            } else {
+                null
+            }
 
             // Log the submission
             Timber.i("GameFeedbackUtils: Submitting game feedback: game=$gameName, device=$deviceModel, rating=$rating, tags=${tags.joinToString()}, avgFps=$avgFps, sessionLengthSec=$sessionLengthSec")
@@ -180,7 +176,7 @@ object GameFeedbackUtils {
             val gameId = try {
                 val result = from("games")
                     .upsert(listOf(gameData)) {
-                        onConflict="name"
+                        onConflict = "name"
                         select(columns = Columns.list("id"))
                     }
                     .decodeSingle<IdRow>()
@@ -204,7 +200,7 @@ object GameFeedbackUtils {
             val deviceId = try {
                 val result = from("devices")
                     .upsert(listOf(deviceData)) {
-                        onConflict="model,gpu,android_ver"
+                        onConflict = "model,gpu,android_ver"
                         select(columns = Columns.list("id"))
                     }
                     .decodeSingle<IdRow>()
@@ -221,7 +217,7 @@ object GameFeedbackUtils {
             val appVersionId = try {
                 val result = from("app_versions")
                     .upsert(listOf(appVersionData)) {
-                        onConflict="semver"
+                        onConflict = "semver"
                         select(columns = Columns.list("id"))
                     }
                     .decodeSingle<IdRow>()

@@ -13,9 +13,9 @@ import app.gamenative.service.NotificationHelper
 import app.gamenative.utils.ContainerUtils
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
 import kotlinx.coroutines.*
 import timber.log.Timber
-import javax.inject.Inject
 
 /**
  * GOG Service - thin coordinator that delegates to specialized managers.
@@ -96,7 +96,6 @@ class GOGService : Service() {
             }
         }
 
-
         fun initialize(context: Context): Boolean {
             return GOGPythonBridge.initialize(context)
         }
@@ -109,21 +108,17 @@ class GOGService : Service() {
             return GOGAuthManager.authenticateWithCode(context, authorizationCode)
         }
 
-
         fun hasStoredCredentials(context: Context): Boolean {
             return GOGAuthManager.hasStoredCredentials(context)
         }
-
 
         suspend fun getStoredCredentials(context: Context): Result<GOGCredentials> {
             return GOGAuthManager.getStoredCredentials(context)
         }
 
-
         suspend fun validateCredentials(context: Context): Result<Boolean> {
             return GOGAuthManager.validateCredentials(context)
         }
-
 
         fun clearStoredCredentials(context: Context): Boolean {
             return GOGAuthManager.clearStoredCredentials(context)
@@ -190,21 +185,17 @@ class GOGService : Service() {
             return getInstance()?.activeDownloads?.isNotEmpty() ?: false
         }
 
-
         fun getCurrentlyDownloadingGame(): String? {
             return getInstance()?.activeDownloads?.keys?.firstOrNull()
         }
-
 
         fun getDownloadInfo(gameId: String): DownloadInfo? {
             return getInstance()?.activeDownloads?.get(gameId)
         }
 
-
         fun cleanupDownload(gameId: String) {
             getInstance()?.activeDownloads?.remove(gameId)
         }
-
 
         fun cancelDownload(gameId: String): Boolean {
             val instance = getInstance()
@@ -253,7 +244,6 @@ class GOGService : Service() {
             }
         }
 
-
         fun getInstallPath(gameId: String): String? {
             return runBlocking(Dispatchers.IO) {
                 val game = getInstance()?.gogManager?.getGameById(gameId)
@@ -261,18 +251,15 @@ class GOGService : Service() {
             }
         }
 
-
         fun verifyInstallation(gameId: String): Pair<Boolean, String?> {
             return getInstance()?.gogManager?.verifyInstallation(gameId)
                 ?: Pair(false, "Service not available")
         }
 
-
         suspend fun getInstalledExe(context: Context, libraryItem: LibraryItem): String {
             return getInstance()?.gogManager?.getInstalledExe(context, libraryItem)
                 ?: ""
         }
-
 
         fun getWineStartCommand(
             context: Context,
@@ -281,19 +268,17 @@ class GOGService : Service() {
             bootToContainer: Boolean,
             appLaunchInfo: LaunchInfo?,
             envVars: com.winlator.core.envvars.EnvVars,
-            guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent
+            guestProgramLauncherComponent: com.winlator.xenvironment.components.GuestProgramLauncherComponent,
         ): String {
             return getInstance()?.gogManager?.getWineStartCommand(
-                context, libraryItem, container, bootToContainer, appLaunchInfo, envVars, guestProgramLauncherComponent
+                context, libraryItem, container, bootToContainer, appLaunchInfo, envVars, guestProgramLauncherComponent,
             ) ?: "\"explorer.exe\""
         }
-
 
         suspend fun refreshLibrary(context: Context): Result<Int> {
             return getInstance()?.gogManager?.refreshLibrary(context)
                 ?: Result.failure(Exception("Service not available"))
         }
-
 
         fun downloadGame(context: Context, gameId: String, installPath: String): Result<DownloadInfo?> {
             val instance = getInstance() ?: return Result.failure(Exception("Service not available"))
@@ -334,7 +319,6 @@ class GOGService : Service() {
             return Result.success(downloadInfo)
         }
 
-
         suspend fun refreshSingleGame(gameId: String, context: Context): Result<GOGGame?> {
             return getInstance()?.gogManager?.refreshSingleGame(gameId, context)
                 ?: Result.failure(Exception("Service not available"))
@@ -356,7 +340,11 @@ class GOGService : Service() {
          * @param preferredAction Preferred sync action: "download", "upload", or "none"
          * @return true if sync succeeded, false otherwise
          */
-        suspend fun syncCloudSaves(context: Context, appId: String, preferredAction: String = "none"): Boolean = withContext(Dispatchers.IO) {
+        suspend fun syncCloudSaves(
+            context: Context,
+            appId: String,
+            preferredAction: String = "none",
+        ): Boolean = withContext(Dispatchers.IO) {
             try {
                 Timber.tag("GOG").d("[Cloud Saves] syncCloudSaves called for $appId with action: $preferredAction")
 
@@ -423,7 +411,11 @@ class GOGService : Service() {
                                 if (saveDir.exists() && saveDir.isDirectory) {
                                     val filesBefore = saveDir.listFiles()
                                     if (filesBefore != null && filesBefore.isNotEmpty()) {
-                                        Timber.tag("GOG").i("[Cloud Saves] [BEFORE] ${filesBefore.size} files in '${location.name}': ${filesBefore.joinToString(", ") { it.name }}")
+                                        Timber.tag("GOG").i(
+                                            "[Cloud Saves] [BEFORE] ${filesBefore.size} files in '${location.name}': ${filesBefore.joinToString(", ") {
+                                                it.name
+                                            }}",
+                                        )
                                     } else {
                                         Timber.tag("GOG").i("[Cloud Saves] [BEFORE] Directory '${location.name}' is empty")
                                     }
@@ -454,7 +446,7 @@ class GOGService : Service() {
                                 localPath = location.location,
                                 dirname = location.name,
                                 lastSyncTimestamp = timestamp,
-                                preferredAction = preferredAction
+                                preferredAction = preferredAction,
                             )
 
                             if (newTimestamp > 0) {
@@ -531,17 +523,18 @@ class GOGService : Service() {
         super.onCreate()
         instance = this
 
-
         // Initialize notification helper for foreground service
         notificationHelper = NotificationHelper(applicationContext)
+        val notification = notificationHelper.createForegroundNotification("GOG Service running...")
+        startForeground(2, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Timber.d("[GOGService] onStartCommand() - action: ${intent?.action}")
 
-        // Start as foreground service
-        val notification = notificationHelper.createForegroundNotification("GOG Service running...")
-        startForeground(2, notification) // Use different ID than SteamService (which uses 1)
+        // Ensure foreground state is maintained
+        val notification = notificationHelper.createForegroundNotification("GOG Service active")
+        startForeground(2, notification)
 
         // Determine if we should sync based on the action
         val shouldSync = when (intent?.action) {

@@ -194,7 +194,7 @@ data class ManifestMeta(
     var prereqArgs: String = "",
     var uninstallActionPath: String = "",
     var uninstallActionArgs: String = "",
-    var buildId: String = ""
+    var buildId: String = "",
 ) {
     companion object {
         fun read(buffer: ByteBuffer): ManifestMeta {
@@ -250,7 +250,7 @@ data class ChunkDataList(
     var size: Int = 0,
     var count: Int = 0,
     val elements: MutableList<ChunkInfo> = mutableListOf(),
-    private var manifestVersion: Int = 18
+    private var manifestVersion: Int = 18,
 ) {
     private val guidMap: MutableMap<String, Int> by lazy {
         elements.mapIndexed { index, chunk -> chunk.guidStr to index }.toMap(mutableMapOf())
@@ -335,7 +335,7 @@ data class ChunkInfo(
     var windowSize: Int = 0,
     var fileSize: Long = 0,
     var useHashPrefixForV3: Boolean = false,
-    private val manifestVersion: Int = 18
+    private val manifestVersion: Int = 18,
 ) {
     val guidStr: String by lazy {
         guid.joinToString("-") { "%08x".format(it) }
@@ -343,9 +343,9 @@ data class ChunkInfo(
 
     val guidNum: ULong by lazy {
         (guid[0].toULong() shl 96) or
-                (guid[1].toULong() shl 64) or
-                (guid[2].toULong() shl 32) or
-                guid[3].toULong()
+            (guid[1].toULong() shl 64) or
+            (guid[2].toULong() shl 32) or
+            guid[3].toULong()
     }
 
     /**
@@ -395,7 +395,7 @@ data class FileManifestList(
     var version: Byte = 0,
     var size: Int = 0,
     var count: Int = 0,
-    val elements: MutableList<FileManifest> = mutableListOf()
+    val elements: MutableList<FileManifest> = mutableListOf(),
 ) {
     private val pathMap: MutableMap<String, Int> by lazy {
         elements.mapIndexed { index, fm -> fm.filename to index }.toMap(mutableMapOf())
@@ -459,7 +459,7 @@ data class FileManifestList(
                         guid = intArrayOf(buffer.int, buffer.int, buffer.int, buffer.int),
                         offset = buffer.int,
                         size = buffer.int,
-                        fileOffset = fileOffset
+                        fileOffset = fileOffset,
                     )
 
                     fm.chunkParts.add(part)
@@ -520,7 +520,7 @@ data class FileManifest(
     var fileSize: Long = 0,
     var hashMd5: ByteArray = ByteArray(16),
     var mimeType: String = "",
-    var hashSha256: ByteArray = ByteArray(32)
+    var hashSha256: ByteArray = ByteArray(32),
 ) {
     val isReadOnly: Boolean get() = (flags and 0x1) != 0
     val isCompressed: Boolean get() = (flags and 0x2) != 0
@@ -545,7 +545,7 @@ data class ChunkPart(
     val guid: IntArray,
     val offset: Int,
     val size: Int,
-    val fileOffset: Long
+    val fileOffset: Long,
 ) {
     val guidStr: String by lazy {
         guid.joinToString("-") { "%08x".format(it) }
@@ -569,7 +569,7 @@ data class ChunkPart(
  * Custom fields in the manifest
  */
 data class CustomFields(
-    private val fields: MutableMap<String, String> = mutableMapOf()
+    private val fields: MutableMap<String, String> = mutableMapOf(),
 ) {
     operator fun get(key: String): String? = fields[key]
     operator fun set(key: String, value: String) {

@@ -233,13 +233,13 @@ class GOGAppScreen : BaseAppScreen() {
                     // Calculate sizes
                     val downloadSize = app.gamenative.utils.StorageUtils.formatBinarySize(game?.downloadSize ?: 0L)
                     val availableSpace = app.gamenative.utils.StorageUtils.formatBinarySize(
-                        app.gamenative.utils.StorageUtils.getAvailableSpace(app.gamenative.service.gog.GOGConstants.defaultGOGGamesPath)
+                        app.gamenative.utils.StorageUtils.getAvailableSpace(app.gamenative.service.gog.GOGConstants.defaultGOGGamesPath),
                     )
 
                     val message = context.getString(
                         R.string.gog_install_confirmation_message,
                         downloadSize,
-                        availableSpace
+                        availableSpace,
                     )
                     val state = app.gamenative.ui.component.dialog.state.MessageDialogState(
                         visible = true,
@@ -247,7 +247,7 @@ class GOGAppScreen : BaseAppScreen() {
                         title = context.getString(R.string.gog_install_game_title),
                         message = message,
                         confirmBtnText = context.getString(R.string.download),
-                        dismissBtnText = context.getString(R.string.cancel)
+                        dismissBtnText = context.getString(R.string.cancel),
                     )
                     BaseAppScreen.showInstallDialog(libraryItem.appId, state)
                 } catch (e: Exception) {
@@ -393,7 +393,11 @@ class GOGAppScreen : BaseAppScreen() {
         Timber.tag(TAG).d("Update clicked for GOG game: ${libraryItem.appId}")
     }
 
-override fun getExportFileExtension(): String = ".pcgame"
+    override fun getExportFileExtension(): String {
+        Timber.tag(TAG).d("getExportFileExtension: returning 'tzst'")
+        // GOG containers use the same export format as other Wine containers
+        return "tzst"
+    }
 
     override fun getInstallPath(context: Context, libraryItem: LibraryItem): String? {
         Timber.tag(TAG).d("getInstallPath: appId=${libraryItem.appId}")
@@ -535,7 +539,6 @@ override fun getExportFileExtension(): String = ".pcgame"
     ) {
         Timber.tag(TAG).d("AdditionalDialogs: composing for appId=${libraryItem.appId}")
         val context = LocalContext.current
-
 
         // Monitor uninstall dialog state
         var showUninstallDialog by remember { mutableStateOf(shouldShowUninstallDialog(libraryItem.appId)) }
