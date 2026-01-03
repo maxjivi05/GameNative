@@ -54,9 +54,10 @@ import app.gamenative.data.LibraryItem
 import app.gamenative.data.SteamApp
 import app.gamenative.events.AndroidEvent
 import app.gamenative.events.SteamEvent
-import app.gamenative.service.SteamService
 import app.gamenative.service.epic.EpicService
+import app.gamenative.service.GameSessionManager
 import app.gamenative.service.gog.GOGService
+import app.gamenative.service.SteamService
 import app.gamenative.ui.data.XServerState
 import app.gamenative.utils.ContainerUtils
 import app.gamenative.utils.CustomGameScanner
@@ -230,6 +231,7 @@ fun XServerScreen(
         onDispose {
             physicalControllerHandler?.cleanup()
             physicalControllerHandler = null
+            GameSessionManager.clearSession()
         }
     }
     var isKeyboardVisible = false

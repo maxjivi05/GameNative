@@ -13,6 +13,7 @@
     - Fixed a route-matching bug that incorrectly allowed navigation back to the login screen after a successful session was established. The Library screen is now correctly treated as the navigation root.
 - **Process & Thread Management**: 
     - Enhanced the application shutdown sequence to ensure all child processes (including Wine/Proton instances) and background threads are forcefully and reliably terminated upon exit.
+    - Resolved a critical memory leak in PluviaApp where static references to XServerView and other UI components were preventing Activity instances from being garbage collected. Implemented a robust GameSessionManager for lifecycle-aware cleanup.
 - **Stability Improvements**:
     - Resolved a race condition where Steam notifications were not prioritized during heavy game initialization, which previously led to intermittent crashes.
     - Fixed a Kotlin NullPointerException in the ContentsManager extraction callback by allowing nullable exception parameters.

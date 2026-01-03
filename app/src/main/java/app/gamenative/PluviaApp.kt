@@ -133,7 +133,7 @@ class PluviaApp : SplitCompatApplication() {
         val events: EventDispatcher = EventDispatcher()
         internal var onDestinationChangedListener: NavChangedListener? = null
 
-        // TODO: find a way to make this saveable, this is terrible (leak that memory baby)
+        // These are managed by GameSessionManager to prevent memory leaks
         internal var xEnvironment: XEnvironment? = null
         internal var xServerView: XServerView? = null
         var inputControlsView: InputControlsView? = null
