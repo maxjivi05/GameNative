@@ -105,6 +105,17 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <provider
+            android:name="com.winlator.contents.ExternalStorageProvider"
+            android:authorities="${applicationId}.storage"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <!-- FileProvider for secure file sharing (for APK installation) -->
         <provider
             android:name="androidx.core.content.FileProvider"

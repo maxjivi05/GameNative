@@ -1,0 +1,23 @@
+# Changelog - GameNative
+
+## [Current Build] - 2026-01-03
+
+### Added
+- **External File Access**: Implemented a DocumentsProvider that allows external file managers to directly access the application's internal files and subfolders (like Wine prefixes and game installs).
+- **Application Exit Menu**: Implemented a comprehensive exit dialog when backing out of the Library screen, offering users the choice to Minimize, Exit, or Cancel.
+- **GZIP Content Support**: Added support for GZIP-compressed (.tar.gz) content packages within the Contents Manager, expanding compatibility for various box64 and system component builds.
+
+### Fixed
+- **Navigation & State Persistence**: 
+    - Resolved a critical issue where switching between applications would reset the UI state. Scroll positions and active dialogs are now correctly preserved using persistent state-saving logic.
+    - Fixed a route-matching bug that incorrectly allowed navigation back to the login screen after a successful session was established. The Library screen is now correctly treated as the navigation root.
+- **Process & Thread Management**: 
+    - Enhanced the application shutdown sequence to ensure all child processes (including Wine/Proton instances) and background threads are forcefully and reliably terminated upon exit.
+- **Stability Improvements**:
+    - Resolved a race condition where Steam notifications were not prioritized during heavy game initialization, which previously led to intermittent crashes.
+    - Fixed a Kotlin NullPointerException in the ContentsManager extraction callback by allowing nullable exception parameters.
+- **Extraction Robustness**: Refactored the internal extraction utility to sequentially attempt XZ, ZSTD, and GZIP formats, providing detailed error reporting via actual IOExceptions instead of generic failure flags.
+
+### Changed
+- **Epic Games Integration**: Updated the Epic Games authentication redirect logic to provide a more seamless and reliable login experience.
+- **Profile Parsing**: Hardened the component profile reader to handle missing optional metadata (such as descriptions) gracefully.
