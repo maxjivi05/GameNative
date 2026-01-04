@@ -1355,7 +1355,7 @@ private fun setupXEnvironment(
     }
 
     guestProgramLauncherComponent.envVars = envVars
-    guestProgramLauncherComponent.setTerminationCallback {
+    guestProgramLauncherComponent.setTerminationCallback { status ->
         if (status != 0) {
             Timber.e("Guest program terminated with status: $status")
             onGameLaunchError?.invoke("Game terminated with error status: $status")
@@ -1601,10 +1601,7 @@ private fun exit(
     winHandler?.stop()
     environment?.stopEnvironmentComponents()
     SteamService.isGameRunning = false
-    PluviaApp.xEnvironment = null
-    PluviaApp.inputControlsView = null
-    PluviaApp.inputControlsManager = null
-    PluviaApp.touchpadView = null
+    GameSessionManager.clearSession()
     frameRating?.writeSessionSummary()
     onExit()
     navigateBack()

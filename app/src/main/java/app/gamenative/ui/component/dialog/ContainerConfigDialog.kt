@@ -1585,9 +1585,9 @@ fun ContainerConfigDialog(
                                                     value = maxDeviceMemoryIndex.coerceIn(0, memValues.lastIndex),
                                                     items = memLabels,
                                                     onItemSelected = {
-                                                        maxDeviceMemoryIndex = idx
+                                                        maxDeviceMemoryIndex = it
                                                         val cfg = KeyValueSet(config.graphicsDriverConfig)
-                                                        cfg.put("maxDeviceMemory", memValues[idx])
+                                                        cfg.put("maxDeviceMemory", memValues[it])
                                                         config = config.copy(graphicsDriverConfig = cfg.toString())
                                                     },
                                                 )

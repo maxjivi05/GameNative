@@ -1185,10 +1185,9 @@ class SteamService : Service(), IChallengeUrlChanged {
                 Timber.i("Item ${item.appId} download completed")
                 // Handle completion: add marker, update database
                 val ownedDlc = runBlocking { getOwnedAppDlc(appId) }
-                MarkerUtils.addMarker(getAppDirPath(appId), Marker.DOWNLOAD_COMPLETE_MARKER)
-                PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(appId))
-                runBlocking {
-                    instance?.appInfoDao?.insert(
+                                        MarkerUtils.addMarker(getAppDirPath(appId), Marker.DOWNLOAD_COMPLETE_MARKER)
+                                        PluviaApp.events.emit(AndroidEvent.LibraryInstallStatusChanged(appId.toString()))
+                                        runBlocking {                    instance?.appInfoDao?.insert(
                         AppInfo(
                             appId,
                             isDownloaded = true,
