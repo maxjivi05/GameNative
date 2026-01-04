@@ -808,18 +808,14 @@ fun ContainerConfigDialog(
                                 showCustomResolutionDialog = false
                             }
                         },
-                    ) {
-                        Text(text = stringResource(R.string.ok))
-                    }
+                    ) { Text(text = stringResource(R.string.ok)) }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = {
                             showCustomResolutionDialog = false
                         },
-                    ) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
+                    ) { Text(text = stringResource(R.string.cancel)) }
                 },
             )
         }
@@ -987,8 +983,8 @@ fun ContainerConfigDialog(
                         modifier = Modifier
                             .padding(
                                 top =
-                                app.gamenative.utils.PaddingUtils.statusBarAwarePadding().calculateTopPadding() +
-                                    paddingValues.calculateTopPadding(),
+                                    app.gamenative.utils.PaddingUtils.statusBarAwarePadding().calculateTopPadding() +
+                                        paddingValues.calculateTopPadding(),
                                 bottom = 32.dp + paddingValues.calculateBottomPadding(),
                                 start = paddingValues.calculateStartPadding(LayoutDirection.Ltr),
                                 end = paddingValues.calculateEndPadding(LayoutDirection.Ltr),
@@ -1167,7 +1163,11 @@ fun ContainerConfigDialog(
                                         items = screenSizes,
                                         onItemSelected = {
                                             screenSizeIndex = it
-                                            if (it == 0) showCustomResolutionDialog = true
+                                            if (it == 0) {
+                                                showCustomResolutionDialog = true
+                                            } else {
+                                                applyScreenSizeToConfig()
+                                            }
                                         },
                                     )
                                     // Audio Driver Dropdown
@@ -1516,10 +1516,10 @@ fun ContainerConfigDialog(
                                                     title = { Text(text = stringResource(R.string.vulkan_version)) },
                                                     value = vkMaxVersionIndex.coerceIn(0, 3),
                                                     items = vkVersions,
-                                                    onItemSelected = { idx ->
-                                                        vkMaxVersionIndex = idx
+                                                    onItemSelected = {
+                                                        vkMaxVersionIndex = it
                                                         val cfg = KeyValueSet(config.graphicsDriverConfig)
-                                                        cfg.put("vkMaxVersion", vkVersions[idx])
+                                                        cfg.put("vkMaxVersion", vkVersions[it])
                                                         config = config.copy(graphicsDriverConfig = cfg.toString())
                                                     },
                                                 )
@@ -1584,7 +1584,7 @@ fun ContainerConfigDialog(
                                                     title = { Text(text = stringResource(R.string.max_device_memory)) },
                                                     value = maxDeviceMemoryIndex.coerceIn(0, memValues.lastIndex),
                                                     items = memLabels,
-                                                    onItemSelected = { idx ->
+                                                    onItemSelected = {
                                                         maxDeviceMemoryIndex = idx
                                                         val cfg = KeyValueSet(config.graphicsDriverConfig)
                                                         cfg.put("maxDeviceMemory", memValues[idx])
@@ -1758,8 +1758,8 @@ fun ContainerConfigDialog(
                                         title = { Text(text = stringResource(R.string.directinput_mapper_type)) },
                                         value = if (config.dinputMapperType == 1.toByte()) 0 else 1,
                                         items = listOf("Standard", "XInput Mapper"),
-                                        onItemSelected = { index ->
-                                            config = config.copy(dinputMapperType = if (index == 0) 1 else 2)
+                                        onItemSelected = {
+                                            config = config.copy(dinputMapperType = if (it == 0) 1 else 2)
                                         },
                                     )
                                     // Disable external mouse input
@@ -1891,9 +1891,7 @@ fun ContainerConfigDialog(
                                                             envVars = envVars.toString(),
                                                         )
                                                     },
-                                                    content = {
-                                                        Icon(Icons.Filled.Delete, contentDescription = "Delete variable")
-                                                    },
+                                                    content = { Icon(Icons.Filled.Delete, contentDescription = "Delete variable") },
                                                 )
                                             },
                                         )
@@ -1925,7 +1923,7 @@ fun ContainerConfigDialog(
                                 SettingsGroup {
                                     // TODO: make the game drive un-deletable
                                     // val directoryLauncher = rememberLauncherForActivityResult(
-                                    //     ActivityResultContracts.OpenDocumentTree()
+                                    //     ActivityResultContracts.OpenDocumentTree())
                                     // ) { uri ->
                                     //     uri?.let {
                                     //         // Handle the selected directory URI
@@ -1951,7 +1949,7 @@ fun ContainerConfigDialog(
                                                 //             )
                                                 //         },
                                                 //         content = { Icon(Icons.Filled.Delete, contentDescription = "Delete drive") },
-                                                //     )
+                                                //     ),
                                                 // },
                                             )
                                         }
@@ -2010,6 +2008,25 @@ fun ContainerConfigDialog(
                                         title = { Text(text = stringResource(R.string.processor_affinity_32bit)) },
                                         value = config.cpuListWoW64,
                                         onValueChange = { config = config.copy(cpuListWoW64 = it) },
+                                    )
+                                    SettingsSwitch(
+                                        colors = settingsTileColorsAlt(),
+                                        title = { Text(text = stringResource(R.string.wow64_mode)) },
+                                        state = config.wow64Mode,
+                                        onCheckedChange = {
+                                            config = config.copy(wow64Mode = it)
+                                        },
+                                    )
+                                    SettingsListDropdown(
+                                        colors = settingsTileColors(),
+                                        title = { Text(text = stringResource(R.string.desktop_theme)) },
+                                        value = com.winlator.core.WineThemeManager.getThemes().indexOfFirst { it.name == config.desktopTheme }.coerceAtLeast(0),
+                                        items = com.winlator.core.WineThemeManager.getThemes().map { it.name },
+                                        onItemSelected = {
+                                            config = config.copy(
+                                                desktopTheme = com.winlator.core.WineThemeManager.getThemes()[it].name,
+                                            )
+                                        },
                                     )
                                 }
                             }
@@ -2132,12 +2149,12 @@ private fun ExecutablePathDropdown(
                         text = {
                             Column {
                                 Text(
-                                    text = executable.substringAfterLast('\\'),
+                                    text = executable.substringAfterLast('\'),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
-                                if (executable.contains('\\')) {
+                                if (executable.contains('\')) {
                                     Text(
-                                        text = executable.substringBeforeLast('\\'),
+                                        text = executable.substringBeforeLast('\'),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
@@ -2181,12 +2198,12 @@ private fun scanExecutablesInADrive(drives: String): List<String> {
         fun scanRecursive(dir: java.io.File, baseDir: java.io.File, depth: Int = 0, maxDepth: Int = 10) {
             if (depth > maxDepth) return
 
-            dir.listFiles()?.forEach { file ->
-                if (file.isDirectory) {
-                    scanRecursive(file, baseDir, depth + 1, maxDepth)
-                } else if (file.isFile && file.name.lowercase().endsWith(".exe")) {
+            dir.listFiles()?.forEach {
+                if (it.isDirectory) {
+                    scanRecursive(it, baseDir, depth + 1, maxDepth)
+                } else if (it.isFile && it.name.lowercase().endsWith(".exe")) {
                     // Convert to relative Windows path format
-                    val relativePath = baseDir.toURI().relativize(file.toURI()).path
+                    val relativePath = baseDir.toURI().relativize(it.toURI()).path
                     executables.add(relativePath)
                 }
             }
@@ -2195,7 +2212,8 @@ private fun scanExecutablesInADrive(drives: String): List<String> {
         scanRecursive(aDir, aDir)
 
         // Sort alphabetically and prioritize common game executables
-        executables.sortWith { a, b ->
+        executables.sortWith {
+            a, b ->
             val aScore = getExecutablePriority(a)
             val bScore = getExecutablePriority(b)
 
@@ -2231,7 +2249,7 @@ private fun getADrivePath(drives: String): String? {
  * Assigns priority scores to executables for better sorting
  */
 private fun getExecutablePriority(exePath: String): Int {
-    val fileName = exePath.substringAfterLast('\\').lowercase()
+    val fileName = exePath.substringAfterLast('\').lowercase()
     val baseName = fileName.substringBeforeLast('.')
 
     return when {
